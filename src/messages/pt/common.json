@@ -1,0 +1,16 @@
+{
+  "appTitle": "Stock Verdict",
+  "switchLanguage": "Mudar Idioma",
+  "searchPlaceholder": "Digite o código do ativo (ex: AAPL, PETR4)",
+  "currencyLabel": "USD/JPY",
+  "watchlistTitle": "Lista de Observação",
+  "addToWatchlist": "Adicionar",
+  "removeFromWatchlist": "Remover",
+  "recommendationBuy": "Comprar",
+  "recommendationHold": "Manter",
+  "recommendationSell": "Vender",
+  "latestNews": "Últimas Notícias",
+  "financials": "Dados Financeiros",
+  "loading": "Carregando...",
+  "noData": "Sem dados disponíveis"
+}

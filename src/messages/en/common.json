@@ -1,0 +1,16 @@
+{
+  "appTitle": "Stock Verdict",
+  "switchLanguage": "Switch Language",
+  "searchPlaceholder": "Enter stock code (e.g. AAPL, 7203)",
+  "currencyLabel": "USD/JPY",
+  "watchlistTitle": "Watchlist",
+  "addToWatchlist": "Add",
+  "removeFromWatchlist": "Remove",
+  "recommendationBuy": "Buy",
+  "recommendationHold": "Hold",
+  "recommendationSell": "Sell",
+  "latestNews": "Latest News",
+  "financials": "Financials",
+  "loading": "Loading...",
+  "noData": "No data available"
+}
