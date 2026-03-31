@@ -1,71 +1,146 @@
-# Core Features & Workflow for Stock Market Analysis App
+# Stock Verdict
 
-This document outlines the main flow and required features for a stock market analysis application that provides buy recommendations based on live data and custom analytical formulas.
-
----
-
-## 1. User Input
-
-- **Enter Stock Symbol:**  
-  The user enters a stock ticker symbol (e.g., AAPL, TSLA, etc.) in the application interface.
+> AI-powered stock analysis tool that gives you **BUY / WAIT / AVOID** verdicts backed by financial formulas, valuation models, and macro context.
 
 ---
 
-## 2. Data Gathering (Backend/API Responsibilities)
+## Tech Stack
 
-Your backend should fetch and aggregate as much actionable data as possible for the given stock symbol:
-
-- **Latest Stock Price**
-  - Retrieve real-time or near real-time price data.
-
-- **Historical Data**
-  - Gather daily, weekly, or yearly price histories to power custom calculations (e.g., SMA, EMA, RSI).
-
-- **Financial Data**
-  - Collect financial metrics such as:
-    - Price/Earnings (P/E) ratio
-    - Quarterly reports
-    - Financial release dates
-
-- **News & Articles**
-  - Fetch recent news items or analyst commentary related to the stock to help gauge market sentiment.
-
-- **Additional Signals (optional)**
-  - Analyst ratings
-  - Insider transactions
-  - Other relevant market data
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 16+ (App Router) |
+| Language | TypeScript |
+| UI | shadcn/ui + Tailwind CSS 4 |
+| State | Zustand |
+| Data Fetching | TanStack React Query |
+| i18n | next-intl (EN / JA / PT) |
+| Validation | Zod |
+| Testing | Vitest + happy-dom |
 
 ---
 
-## 3. Custom Calculations & Analysis
+## Getting Started
 
-Process the aggregated data to generate actionable insights:
+```bash
+# Install dependencies
+npm install
 
-- **Custom Financial Formulas**
-  - Compute technical indicators (moving averages, RSI, ROE, etc.).
-  - Conduct comparisons with industry averages or historical norms.
+# Copy environment variables
+cp .env.example .env.local
 
-- **Valuation Check**
-  - Assess whether the stock is overvalued or undervalued vs. benchmarks.
+# Start development server
+npm run dev
 
-- **Decision Logic**
-  - Combine quantitative and qualitative signals to decide whether the stock is a "Buy" or "Do Not Buy".
+# Run tests
+npm run test
 
----
+# Run tests (single pass, for CI)
+npm run test:run
 
-## 4. Summary & Explanation
-
-Return to the user:
-
-- **Final Verdict**
-  - Clear recommendation: "Buy" or "Do Not Buy".
-
-- **Summary of Reasoning**
-  - Key supporting facts, e.g.:
-    - "Current P/E is below 5-year average."
-    - "Earnings release due next week."
-    - "News sentiment positive."
+# Run tests with coverage
+npm run test:coverage
+```
 
 ---
 
-*This process ensures each recommendation is supported by transparent, up-to-date data and well-documented logic, empowering users to make informed investing decisions.*
+## Project Structure
+
+```
+src/
+├── app/
+│   ├── api/stock/[ticker]/route.ts   # Stock data API (Phase 2)
+│   ├── layout.tsx
+│   ├── page.tsx                      # Landing page
+│   ├── providers.tsx                 # QueryClient + next-intl
+│   └── globals.css
+├── components/
+│   ├── ui/                           # shadcn/ui base components
+│   │   ├── badge.tsx
+│   │   ├── button.tsx
+│   │   ├── card.tsx
+│   │   ├── input.tsx
+│   │   └── tabs.tsx
+│   ├── stock/                        # Stock-specific components (Phase 2)
+│   └── verdict/                      # Verdict display components (Phase 2)
+├── hooks/
+│   └── useStock.ts                   # TanStack Query hook (Phase 2)
+├── lib/
+│   ├── utils.ts                      # cn() utility
+│   ├── benchmarks/
+│   │   └── industries.ts             # Industry benchmark data
+│   ├── classifiers/
+│   │   ├── capSize.ts                # Market cap classification
+│   │   └── lynchCategory.ts          # Peter Lynch stock categories
+│   ├── formulas/
+│   │   ├── ratios.ts                 # Financial ratio calculations
+│   │   ├── valuation.ts              # DCF, Graham, Lynch fair values
+│   │   └── health.ts                 # Altman Z-Score, Piotroski F-Score
+│   └── scoring/
+│       ├── buffettScore.ts           # Buffett investment lens
+│       ├── grahamScore.ts            # Graham investment lens
+│       ├── lynchScore.ts             # Lynch investment lens
+│       └── verdictEngine.ts          # Weighted scoring → BUY/WAIT/AVOID
+├── messages/
+│   ├── en/common.json
+│   ├── ja/common.json
+│   └── pt/common.json
+├── state/
+│   └── langStore.ts                  # Zustand locale store
+├── types/
+│   ├── stock.ts
+│   ├── financials.ts
+│   ├── verdict.ts
+│   ├── macro.ts
+│   ├── news.ts
+│   └── index.ts
+└── validators/
+    └── stock.ts                      # Zod schemas
+```
+
+---
+
+## Development Phases
+
+| Phase | Description | Status |
+|---|---|---|
+| **Phase 1** | Foundation: shadcn/ui, Vitest, types, formulas, scoring engine | ✅ Done |
+| **Phase 2** | Data fetching: Yahoo Finance API, stock overview, price chart | 🔜 Next |
+| **Phase 3** | Technical analysis: SMA, volume, drawdown detection | 🔜 Planned |
+| **Phase 4** | Dividends & calendar: ex-div dates, payout ratio warnings | 🔜 Planned |
+| **Phase 5** | News & macro intelligence: sentiment, BOJ/Fed rates, USD/JPY | 🔜 Planned |
+| **Phase 6** | Full verdict UI: BUY/WAIT/AVOID card, AI-generated summaries | 🔜 Planned |
+| **Phase 7** | Polish: watchlist, price alerts, dark mode, mobile responsive | 🔜 Planned |
+
+---
+
+## Verdict Engine
+
+Scores are weighted across five dimensions:
+
+| Dimension | Weight |
+|---|---|
+| Financials (ROE, margins, FCF) | 30% |
+| Valuation (P/E, P/S, PEG) | 20% |
+| Financial Health (current ratio, D/E, Z-Score) | 20% |
+| Technical (EPS growth, beta) | 15% |
+| Macro & News | 15% |
+
+**Final score → BUY (> 7) / WAIT (4–7) / AVOID (< 4)**
+
+Three investor lenses are also available: Buffett, Graham, Lynch.
+
+---
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Write tests alongside any formula or scoring changes (TDD approach)
+4. Ensure tests pass: `npm run test:run`
+5. Submit a pull request
+
+---
+
+## Disclaimer
+
+Stock Verdict is a **decision-support tool**, not financial advice. Always do your own research before investing.
