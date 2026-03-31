@@ -11,3 +11,5 @@ export type {
 } from './verdict';
 export type { MacroData } from './macro';
 export type { NewsArticle } from './news';
+export type { CalendarData } from './calendar';
+export type { StockVerdictResponse } from './api';

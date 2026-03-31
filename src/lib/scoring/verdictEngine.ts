@@ -15,6 +15,8 @@ export interface VerdictEngineParams {
   price: number;
   industryBenchmarks: IndustryBenchmarks;
   sector?: string;
+  macroScore?: number;  // 0–10, defaults to 5 (neutral) when not provided
+  newsScore?: number;   // 0–10, defaults to 5 (neutral) when not provided
 }
 
 /**
@@ -28,7 +30,7 @@ export interface VerdictEngineParams {
  * Score > 7 = BUY, 4-7 = WAIT, < 4 = AVOID
  */
 export function generateVerdict(params: VerdictEngineParams): Verdict {
-  const { financials, balanceSheet, price, industryBenchmarks, sector = '' } = params;
+  const { financials, price, industryBenchmarks, sector = '', macroScore: macroScoreInput, newsScore: newsScoreInput } = params;
 
   // --- Financials Score (0-10) ---
   let financialsScore = 5; // start neutral
@@ -102,9 +104,9 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
 
   technicalScore = Math.max(0, Math.min(10, technicalScore));
 
-  // --- Macro Score (0-10) — default 5 when no macro data available ---
-  const macroScore = 5;
-  const newsScore = 5;
+  // --- Macro Score (0-10) — use real score if provided ---
+  const macroScore = macroScoreInput ?? 5;
+  const newsScore = newsScoreInput ?? 5;
 
   // --- Weighted Overall Score ---
   const overall =

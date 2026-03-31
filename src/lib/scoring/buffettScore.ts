@@ -1,5 +1,5 @@
 import type { FinancialMetrics, BalanceSheet, InvestorVerdict, InvestorCheck } from '@/types';
-import { dcfFairValue, calculateMarginOfSafety } from '@/lib/formulas/valuation';
+import { dcfFairValue } from '@/lib/formulas/valuation';
 
 /**
  * Evaluates a stock through Warren Buffett's investment lens.

@@ -1,28 +1,107 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-// TODO: Phase 2 - Implement stock data fetching
-// This route will:
-// 1. Accept a ticker parameter (e.g. AAPL, 7203.T)
-// 2. Fetch stock data from Yahoo Finance / Alpha Vantage
-// 3. Run the verdict engine
-// 4. Return a structured VerdictResponse
-//
-// Example response shape:
-// {
-//   overview: StockOverview,
-//   financials: FinancialMetrics,
-//   balanceSheet: BalanceSheet,
-//   verdict: Verdict,
-//   investorVerdicts: { buffett: InvestorVerdict, graham: InvestorVerdict, lynch: InvestorVerdict }
-// }
+import { fetchStockData } from '@/lib/services/yahooFinance';
+import { fetchMacroData } from '@/lib/services/macroService';
+import { fetchStockNews, scoreNews } from '@/lib/services/newsService';
+import { generateVerdict } from '@/lib/scoring/verdictEngine';
+import { evaluateBuffett } from '@/lib/scoring/buffettScore';
+import { evaluateGraham } from '@/lib/scoring/grahamScore';
+import { evaluateLynch } from '@/lib/scoring/lynchScore';
+import { scoreMacro } from '@/lib/scoring/macroScore';
+import { getBenchmarksForSector } from '@/lib/benchmarks/industries';
+import type { StockVerdictResponse } from '@/types';
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ ticker: string }> }
 ) {
   const { ticker } = await params;
-  return NextResponse.json(
-    { message: `Stock data for ${ticker} — coming in Phase 2` },
-    { status: 501 }
-  );
+
+  if (!ticker || ticker.trim().length === 0) {
+    return NextResponse.json(
+      { error: 'Ticker symbol is required' },
+      { status: 400 }
+    );
+  }
+
+  try {
+    // 1. Fetch stock data, macro data, and news in parallel
+    const [stockData, macroData, news] = await Promise.all([
+      fetchStockData(ticker),
+      fetchMacroData(),
+      fetchStockNews(ticker),
+    ]);
+
+    const { overview, financials, balanceSheet, incomeStatement, calendarData } = stockData;
+
+    // 2. Score macro and news
+    const macroScore = scoreMacro(macroData);
+    const newsScore = scoreNews(news);
+
+    // 3. Get industry benchmarks for the sector
+    const benchmarks = getBenchmarksForSector(overview.sector);
+
+    // 4. Run the master verdict engine with real macro and news scores
+    const verdict = generateVerdict({
+      financials,
+      balanceSheet,
+      price: overview.currentPrice,
+      industryBenchmarks: benchmarks,
+      sector: overview.sector,
+      macroScore,
+      newsScore,
+    });
+
+    // 5. Run individual investor lenses
+    const buffett = evaluateBuffett(financials, balanceSheet);
+    const graham = evaluateGraham(financials, balanceSheet, {
+      currentPrice: overview.currentPrice,
+    });
+    const lynch = evaluateLynch(financials, balanceSheet);
+
+    // 6. Fix per-share values using real shares outstanding
+    if (overview.sharesOutstanding > 1) {
+      if (buffett.fairValue !== null) {
+        buffett.fairValue = buffett.fairValue / overview.sharesOutstanding;
+        buffett.buyBelow = buffett.fairValue * 0.75;
+      }
+      if (verdict.fairValue !== null) {
+        verdict.fairValue = verdict.fairValue / overview.sharesOutstanding;
+        verdict.suggestedBuyPrice = verdict.fairValue * 0.75;
+      }
+    }
+
+    const response: StockVerdictResponse = {
+      overview,
+      financials,
+      balanceSheet,
+      incomeStatement,
+      verdict,
+      investorVerdicts: {
+        buffett,
+        graham,
+        lynch,
+      },
+      news,
+      macroData,
+      calendarData,
+    };
+
+    return NextResponse.json(response);
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : 'Failed to fetch stock data';
+
+    if (message.includes('Not Found') || message.includes('no symbol')) {
+      return NextResponse.json(
+        { error: `Ticker "${ticker}" not found. Try a valid symbol like AAPL or 7203.T` },
+        { status: 404 }
+      );
+    }
+
+    console.error(`[API] /api/stock/${ticker} error:`, error);
+    return NextResponse.json(
+      { error: message },
+      { status: 500 }
+    );
+  }
 }

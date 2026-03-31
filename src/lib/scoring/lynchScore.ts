@@ -8,7 +8,7 @@ import { lynchFairValue } from '@/lib/formulas/valuation';
  */
 export function evaluateLynch(
   metrics: FinancialMetrics,
-  balanceSheet: BalanceSheet
+  _balanceSheet: BalanceSheet
 ): InvestorVerdict {
   const checks: InvestorCheck[] = [];
 

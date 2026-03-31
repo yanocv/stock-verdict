@@ -9,5 +9,6 @@ export interface StockOverview {
   exchange: string;
   fiftyTwoWeekHigh: number;
   fiftyTwoWeekLow: number;
+  sharesOutstanding: number;
   capSize: 'large' | 'mid' | 'small';
 }

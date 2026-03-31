@@ -11,6 +11,7 @@ export const StockOverviewSchema = z.object({
   exchange: z.string(),
   fiftyTwoWeekHigh: z.number().positive(),
   fiftyTwoWeekLow: z.number().positive(),
+  sharesOutstanding: z.number().positive(),
   capSize: z.enum(['large', 'mid', 'small']),
 });
 

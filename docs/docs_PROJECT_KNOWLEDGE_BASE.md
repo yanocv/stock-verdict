@@ -361,24 +361,51 @@ interface Verdict {
 - [x] Landing page with search + language switcher
 
 ### Phase 1 — Quick Fixes
-- [ ] Remove unused import in `buffettScore.ts` — [#4](https://github.com/yanocv/stock-verdict/issues/4)
-- [ ] Add `.env.example` — [#5](https://github.com/yanocv/stock-verdict/issues/5)
-- [ ] Dynamic `<html lang>` from langStore — draft (pending)
+- [x] Remove unused import in `buffettScore.ts` — [#4](https://github.com/yanocv/stock-verdict/issues/4)
+- [x] Add `.env.example` — [#5](https://github.com/yanocv/stock-verdict/issues/5)
+- [x] Dynamic `<html lang>` from langStore — draft (pending)
 
 ### Phase 2 — Core Backend
-- [ ] Financial data fetching (US & JP APIs) — [#6](https://github.com/yanocv/stock-verdict/issues/6)
-- [ ] Fix per-share calculations (DCF, Graham) — [#3](https://github.com/yanocv/stock-verdict/issues/3)
+- [x] Financial data fetching (US & JP APIs) — [#6](https://github.com/yanocv/stock-verdict/issues/6)
+- [x] Fix per-share calculations (DCF, Graham) — [#3](https://github.com/yanocv/stock-verdict/issues/3)
 
 ### Phase 3 — Frontend UX
-- [ ] Main verdict flow (input → loading → results) — [#2](https://github.com/yanocv/stock-verdict/issues/2)
+- [x] Main verdict flow (input → loading → results) — [#2](https://github.com/yanocv/stock-verdict/issues/2)
+- [ ] **Auto-complete search:** As the user types, show suggestions for both stock codes and company names (uses Yahoo Finance `search`)
+- [ ] **Company name lookup:** User can search by ticker *or* company name (not just code)
 
-### Phase 4 — Intelligence Layer
-- [ ] News impact & macro scoring — draft (pending)
-- [ ] Calendar awareness (dividends, earnings) — draft (pending)
+### Phase 4 — Intelligence Layer ✅
+- [x] Real-time macro data (VIX, S&P 500, Nikkei 225, USD/JPY, Oil, Gold) via Yahoo Finance
+- [x] Macro scoring function — VIX + S&P 500 + USD/JPY → 0–10 score (replaces hardcoded 5)
+- [x] News fetching via Yahoo Finance `search` — up to 8 articles per ticker
+- [x] Keyword-based news sentiment scoring (bullish/bearish/neutral labels + 0–10 score)
+- [x] Calendar awareness: next earnings date + EPS estimate range + ex-dividend + dividend pay date
+- [x] Macro & news scores wired into the weighted verdict engine (no more hardcoded defaults)
+- [x] Frontend: Market Conditions panel (VIX label, S&P 500, USD/JPY, Oil, Gold)
+- [x] Frontend: Upcoming Events panel (earnings countdown, EPS estimate, dividend dates)
+- [x] Frontend: News panel with per-article sentiment badges
 
 ### Phase 5 — Quality & CI
 - [ ] Full test coverage (85%+ critical modules)
 - [ ] CI pipeline (lint + test on every PR)
+
+### Phase 6 — AI Narrative Layer
+- [ ] Integrate a large-language model (LLM) to generate natural-language verdict narratives
+- [ ] Pass scored data (scores, reasons, investor lens results) to the LLM as structured context
+- [ ] LLM outputs a 2–4 sentence plain-English summary explaining *why* the verdict is BUY/WAIT/AVOID
+- [ ] Optionally: allow LLM to surface non-obvious risks or catalysts not captured by rule-based scoring
+- [ ] Display AI summary prominently in the verdict result panel
+
+**Supported providers (any one is sufficient):**
+
+| Provider | Model | Free Tier | Env Key |
+|----------|-------|-----------|---------|
+| Anthropic | Claude 3.5 Haiku | $5 signup credit | `ANTHROPIC_API_KEY` |
+| OpenAI | GPT-4o-mini | $5 signup credit | `OPENAI_API_KEY` |
+| Google | Gemini 1.5 Flash | Generous free tier | `GOOGLE_API_KEY` |
+| Ollama (local) | Llama 3 / Mistral | Free (runs locally) | No key needed |
+
+> **Note:** GitHub Copilot is an IDE assistant and cannot be called from the app backend at runtime. A provider with a REST API is required.
 
 ---
 
