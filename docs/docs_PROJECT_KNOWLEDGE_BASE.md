@@ -371,8 +371,13 @@ interface Verdict {
 
 ### Phase 3 — Frontend UX
 - [x] Main verdict flow (input → loading → results) — [#2](https://github.com/yanocv/stock-verdict/issues/2)
+- [ ] **Analysis Modes:** Support for two types of analysis and verdict:
+    - Long-term hold/investment mode
+    - Day trade mode (short-term signals)
+- [ ] **Charts/Graphs Tab:** Add a tab or card to the verdict result panel for price history, technical charts, or other visualizations.
+- [ ] **Info/How It Works Tab:** Add an info page or tab explaining the score breakdown, formulas, and how verdicts are calculated, so users understand the methodology. (Needs further planning.)
 - [ ] **Auto-complete search:** As the user types, show suggestions for both stock codes and company names (uses Yahoo Finance `search`)
-- [ ] **Company name lookup:** User can search by ticker *or* company name (not just code)
+- [ , long term hold and day trader can search by ticker *or* company name (not just code)
 
 ### Phase 4 — Intelligence Layer ✅
 - [x] Real-time macro data (VIX, S&P 500, Nikkei 225, USD/JPY, Oil, Gold) via Yahoo Finance
@@ -384,6 +389,7 @@ interface Verdict {
 - [x] Frontend: Market Conditions panel (VIX label, S&P 500, USD/JPY, Oil, Gold)
 - [x] Frontend: Upcoming Events panel (earnings countdown, EPS estimate, dividend dates)
 - [x] Frontend: News panel with per-article sentiment badges
+- [ ] **Planned:** Consider adding crude oil price and geo-political risk as explicit scoring factors in the future (currently only USD/JPY is scored; oil and geo-politics are displayed but not scored)
 
 ### Phase 5 — Quality & CI
 - [ ] Full test coverage (85%+ critical modules)
