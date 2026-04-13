@@ -23,15 +23,17 @@
 12. [News & Sentiment Analysis](#-news--sentiment-analysis)
 13. [Macro & Geopolitical Awareness](#-macro--geopolitical-awareness)
 14. [Calendar Awareness (Dividends, Earnings)](#-calendar-awareness-dividends-earnings)
-15. [Stock Screener (v2)](#-stock-screener-v2)
-16. [Competitor Price Overlay](#-competitor-price-overlay)
-17. [ESG Score](#-esg-score-)
-18. [Buyback Tracker](#-buyback-tracker-)
-19. [Analyst Consensus](#-analyst-consensus-)
-20. [Internationalization (i18n)](#-internationalization-i18n)
-21. [Mobile App (React Native — v2)](#-mobile-app-react-native--v2)
-22. [Infrastructure & Deployment](#-infrastructure--deployment)
-23. [Full Feature Matrix](#-full-feature-matrix)
+15. [Context-Aware Position Verdict (v2)](#-context-aware-position-verdict-v2)
+16. [AI Market Scanner — Stock Discovery (v2)](#-ai-market-scanner--stock-discovery-v2)
+17. [Stock Screener (v2)](#-stock-screener-v2)
+18. [Competitor Price Overlay](#-competitor-price-overlay)
+19. [ESG Score](#-esg-score-)
+20. [Buyback Tracker](#-buyback-tracker-)
+21. [Analyst Consensus](#-analyst-consensus-)
+22. [Internationalization (i18n)](#-internationalization-i18n)
+23. [Mobile App (React Native — v2)](#-mobile-app-react-native--v2)
+24. [Infrastructure & Deployment](#-infrastructure--deployment)
+25. [Full Feature Matrix](#-full-feature-matrix)
 
 ---
 
@@ -436,9 +438,79 @@ Final Score = (Financials × 0.30)
 
 | Score | Verdict | Badge Color | Meaning |
 |-------|---------|-------------|---------|
-| > 7.0 | **BUY** | 🟢 Green | Strong opportunity |
-| 4.0 – 7.0 | **WAIT** | 🟡 Yellow | Hold or monitor |
-| < 4.0 | **AVOID** | 🔴 Red | Too risky / overvalued |
+| > 7.0 | **BUY** | 🟢 Green | Strong opportunity — fundamentals, valuation, and trend align |
+| 4.0 – 7.0 | **WAIT** | 🟡 Yellow | Hold or monitor — not the right moment yet |
+| < 4.0 | **AVOID** | 🔴 Red | Too risky or overvalued — do not enter |
+
+### What Each Verdict Means
+
+#### 🟢 BUY
+The stock scores above 7.0 across the weighted dimensions. Financials are strong, the price is reasonable relative to intrinsic value, the balance sheet is healthy, and macro/technical conditions are supportive. **This is a signal to consider opening or adding to a position**, not a guarantee of profit.
+
+#### 🟡 WAIT
+Score is between 4.0 and 7.0. The stock has some merit but also notable weaknesses — for example: good fundamentals but an overvalued price, or a fair price but deteriorating cash flow. **WAIT means: do not buy right now. Monitor the stock and re-evaluate when conditions improve** (e.g. price pulls back to the suggested buy price, earnings improve, or macro headwinds ease). If you already hold the stock, WAIT means hold — do not sell, but do not add either.
+
+#### 🔴 AVOID
+Score is below 4.0. The stock has serious problems — high debt, negative earnings, extreme overvaluation, or strong macro headwinds. **AVOID means: do not buy, and if you hold it, consider exiting.** This is not a short-sell signal — it simply means the risk/reward is unfavorable at this time.
+
+> **Note:** Verdicts are based on quantitative scoring only (unless the Claude AI narrative is enabled). They do not account for your personal financial situation, risk tolerance, or investment horizon. Always do your own research.
+
+---
+
+## 🔄 Context-Aware Position Verdict (v2)
+
+> ⚠️ **Status: Planned — Architecture & UX design needed before implementation.**
+
+### Concept
+
+Currently the app answers: *"Should I buy this stock?"*
+
+This feature answers: *"I already own this stock — what should I do now?"*
+
+The user optionally enters their **purchase price** and **number of shares**. The app then shifts from a buy-side verdict to a full **position management verdict**:
+
+| Verdict | Meaning |
+|---------|---------|
+| **ADD** | Thesis is intact, stock is still undervalued — consider adding to position |
+| **HOLD** | Thesis is intact but price is fair — hold, don't add |
+| **REDUCE** | Stock is approaching or exceeding fair value — consider taking partial profits |
+| **EXIT** | Fundamental deterioration or extreme overvaluation — consider closing position |
+
+### Context Inputs (from user)
+
+| Input | Purpose |
+|-------|---------|
+| Purchase price (per share) | Calculate unrealized P&L, compare to fair value |
+| Number of shares | Portfolio weight calculation |
+| Purchase date (optional) | How long the position has been held |
+| Target return % (optional) | Custom take-profit threshold |
+| Stop-loss % (optional) | Custom risk management floor |
+
+### What the App Calculates
+
+- **Unrealized P&L** — current value vs. cost basis
+- **Original thesis check** — has anything fundamentally changed since entry?
+- **Position vs. fair value** — is the stock now above/below intrinsic value?
+- **Suggested take-profit price** — e.g. `fair value × 1.1` (10% above fair value)
+- **Suggested stop-loss price** — e.g. `purchase price × 0.85` (15% drawdown)
+- **Risk/reward ratio** — upside to target vs. downside to stop-loss
+- **Score trend** — is the verdict score improving or deteriorating over time?
+
+### UX Considerations (TBD)
+
+- Where does the user enter position data — on the search page, or only in the watchlist?
+- Should position context be optional or required for the new verdicts?
+- How do we display the old BUY/WAIT/AVOID alongside the new HOLD/ADD/REDUCE/EXIT?
+- Does the position verdict replace or supplement the buy-side verdict?
+- Should it integrate with the AI narrative (Claude explains the exit/hold reasoning)?
+
+### Architecture Considerations (TBD)
+
+- Position data needs to be persisted → requires Supabase + auth
+- Anonymous users may be limited to session-only position context
+- Multi-position support (e.g. averaging down — user has 2 buy lots)
+- Historical verdict score tracking needed for "score trend" feature
+- Claude prompt needs to change based on whether user has a position or not
 
 ### Verdict Output Includes
 
@@ -570,6 +642,93 @@ The system detects and scores impact from:
 - Calendar view or timeline widget
 - Upcoming events list with countdown
 - Color-coded importance (red = high impact, yellow = moderate)
+
+---
+
+## 🤖 AI Market Scanner — Stock Discovery (v2)
+
+> ⚠️ **Status: Planned — Architecture & UX design needed before implementation.**
+
+### Concept
+
+Instead of the user knowing which ticker to search for, the app **hunts for opportunities on their behalf**. The user picks a market and the app scans, scores, and surfaces the best candidates.
+
+```
+User selects market → NASDAQ / NYSE / TSE / S&P 500 / etc.
+       ↓
+App fetches a candidate list (~20 stocks, curated or random from top constituents)
+       ↓
+Full scoring engine runs on each stock in parallel
+       ↓
+Results ranked by verdict score (BUY first, then WAIT, then AVOID)
+       ↓
+Displayed as a scannable card grid with verdict badges
+       ↓
+User clicks any card → opens full verdict/financials detail view
+       ↓
+(Optional) Claude AI summarizes the top picks and explains why
+```
+
+### Supported Markets / Indexes
+
+| Market | Coverage | Ticker Source |
+|--------|----------|--------------|
+| NASDAQ 100 | Top 100 NASDAQ stocks | Static list / Yahoo Finance |
+| S&P 500 | Top 500 US stocks | Static list / Wikipedia scrape |
+| NYSE Top 50 | Largest NYSE companies | Static list |
+| TSE Prime (Japan) | Top Japanese companies | Static list / EDINET |
+| Nikkei 225 | 225 leading Japanese stocks | Static list |
+| Custom | User-defined list of tickers | User input |
+
+### Scan Result Card
+
+Each stock in the results displays:
+
+```
+┌──────────────────────────────────────────┐
+│ 🍎 AAPL — Apple Inc.         🟢 BUY     │
+│ $257.68 · NASDAQ · Large Cap             │
+│                                          │
+│ Score: 7.8/10  Confidence: 72%           │
+│ P/E: 32.7  ROE: 152%  FCF: Positive      │
+│                                          │
+│ ✅ Strong ROE   ✅ Growing EPS           │
+│ ⚠️ High P/E for sector                  │
+│                                    [→]   │
+└──────────────────────────────────────────┘
+```
+
+### AI Summary (Claude Integration)
+
+After the scan completes, Claude generates a market summary:
+
+> *"Scanned 20 NASDAQ stocks today. 4 qualify as BUY, 11 as WAIT, 5 as AVOID. Top pick: NVDA (score 8.4) — exceptional revenue growth and margin expansion, though valuation is stretched. A close second is MSFT (8.1) — durable moat and strong free cash flow. Avoid INTC for now — margins are compressing and debt has increased significantly."*
+
+### Filtering & Sorting
+
+| Option | Values |
+|--------|--------|
+| Sort by | Score (desc), Verdict, P/E, Market Cap |
+| Filter by verdict | BUY only / WAIT only / AVOID only / All |
+| Filter by cap size | Large / Mid / Small |
+| Filter by sector | Technology, Healthcare, Finance, etc. |
+| Filter by investor lens | Passes Buffett / Graham / Lynch checks |
+
+### Technical Considerations (TBD)
+
+- **Rate limiting**: Scanning 20 stocks = 20 Yahoo Finance API calls in parallel — need rate limiting and batching strategy
+- **Caching**: Scan results should be cached (e.g. Redis, 15-min TTL) to avoid re-fetching on reload
+- **Candidate list source**: Static JSON list vs. live index constituents scraping — TBD
+- **Scan frequency**: Real-time on demand vs. pre-computed nightly — TBD
+- **Cost**: Each AI summary = 1 Claude API call per scan — consider caching AI summaries too
+
+### UX Considerations (TBD)
+
+- Where does the scanner live — separate page `/scan` or integrated into home page?
+- Should the user be able to save a scan as a watchlist?
+- How do we show progress while 20 stocks are being scored (streaming, progress bar)?
+- Mobile layout for the card grid
+- Should the scanner be free or require an account?
 
 ---
 
@@ -850,6 +1009,8 @@ NEXT_PUBLIC_APP_URL=            # App URL for CORS/redirects
 | Internationalization (EN/JA/PT) | ✅ | ✅ | Partial |
 | Watchlist | ✅ | ✅ | Planned |
 | Analyst consensus | ✅ | ✅ | Planned |
+| Context-aware position verdict (HOLD/ADD/REDUCE/EXIT) | — | ✅ | v2 — needs arch + UX design |
+| AI Market Scanner (scan market, ranked results) | — | ✅ | v2 — needs arch + UX design |
 | Competitor overlay | — | ✅ | v2 |
 | Stock screener | — | ✅ | v2 |
 | ESG score | — | ✅ | v2 |
