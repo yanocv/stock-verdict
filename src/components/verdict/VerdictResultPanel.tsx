@@ -3,10 +3,14 @@
 import type { StockVerdictResponse } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ScoreBreakdown } from './ScoreBreakdown';
 import { InvestorLensCard } from './InvestorLensCard';
 import { NewsPanel } from './NewsPanel';
 import { MacroCalendarPanel } from './MacroCalendarPanel';
+import { FinancialStatementsPanel } from './FinancialStatementsPanel';
+import { PriceChart } from './PriceChart';
+import { HowItWorksPanel } from './HowItWorksPanel';
 import {
   TrendingUp,
   TrendingDown,
@@ -47,7 +51,7 @@ function formatNum(value: number | null, decimals: number = 2): string {
 }
 
 export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
-  const { overview, financials, verdict, investorVerdicts, news, macroData, calendarData } = data;
+  const { overview, financials, verdict, investorVerdicts, news, macroData, calendarData, financialHistory, priceHistory } = data;
   const currency = overview.currency;
 
   return (
@@ -130,111 +134,138 @@ export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
         </CardContent>
       </Card>
 
-      {/* ── Reasons & Score ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Bullish / Bearish */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Analysis</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {verdict.reasons.bullish.length > 0 && (
-              <div>
-                <h4 className="text-sm font-semibold text-green-600 flex items-center gap-1 mb-2">
-                  <TrendingUp className="h-4 w-4" /> Bullish
-                </h4>
-                <ul className="space-y-1">
-                  {verdict.reasons.bullish.map((r) => (
-                    <li key={r} className="text-sm text-muted-foreground flex items-start gap-2">
-                      <span className="text-green-600 mt-1">+</span> {r}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+      {/* ── Main Tabbed Layout ── */}
+      <Tabs defaultValue="overview">
+        <TabsList className="flex-wrap h-auto gap-1">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="chart">Chart</TabsTrigger>
+          <TabsTrigger value="financials">Financials</TabsTrigger>
+          <TabsTrigger value="macro">Market &amp; News</TabsTrigger>
+          <TabsTrigger value="how">How It Works</TabsTrigger>
+        </TabsList>
 
-            {verdict.reasons.bearish.length > 0 && (
-              <div>
-                <h4 className="text-sm font-semibold text-red-600 flex items-center gap-1 mb-2">
-                  <TrendingDown className="h-4 w-4" /> Bearish
-                </h4>
-                <ul className="space-y-1">
-                  {verdict.reasons.bearish.map((r) => (
-                    <li key={r} className="text-sm text-muted-foreground flex items-start gap-2">
-                      <span className="text-red-600 mt-1">−</span> {r}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+        {/* ── Overview Tab ── */}
+        <TabsContent value="overview" className="space-y-6 mt-4">
+          {/* Reasons & Score */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Analysis</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {verdict.reasons.bullish.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-green-600 flex items-center gap-1 mb-2">
+                      <TrendingUp className="h-4 w-4" /> Bullish
+                    </h4>
+                    <ul className="space-y-1">
+                      {verdict.reasons.bullish.map((r) => (
+                        <li key={r} className="text-sm text-muted-foreground flex items-start gap-2">
+                          <span className="text-green-600 mt-1">+</span> {r}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
-            {verdict.reasons.bullish.length === 0 &&
-              verdict.reasons.bearish.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  <AlertTriangle className="h-4 w-4 inline mr-1" />
-                  Insufficient data for detailed analysis.
-                </p>
-              )}
-          </CardContent>
-        </Card>
+                {verdict.reasons.bearish.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-red-600 flex items-center gap-1 mb-2">
+                      <TrendingDown className="h-4 w-4" /> Bearish
+                    </h4>
+                    <ul className="space-y-1">
+                      {verdict.reasons.bearish.map((r) => (
+                        <li key={r} className="text-sm text-muted-foreground flex items-start gap-2">
+                          <span className="text-red-600 mt-1">−</span> {r}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
-        {/* Score Breakdown */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-1">
-              <BarChart3 className="h-4 w-4" /> Score Breakdown
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScoreBreakdown scores={verdict.scores} />
-          </CardContent>
-        </Card>
-      </div>
+                {verdict.reasons.bullish.length === 0 &&
+                  verdict.reasons.bearish.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      <AlertTriangle className="h-4 w-4 inline mr-1" />
+                      Insufficient data for detailed analysis.
+                    </p>
+                  )}
+              </CardContent>
+            </Card>
 
-      {/* ── Key Metrics ── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-1">
-            <DollarSign className="h-4 w-4" /> Key Metrics
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 text-sm">
-            <MetricItem label="P/E" value={formatNum(financials.peRatio, 1)} />
-            <MetricItem label="P/S" value={formatNum(financials.psRatio, 1)} />
-            <MetricItem label="P/B" value={formatNum(financials.pbRatio, 2)} />
-            <MetricItem label="PEG" value={formatNum(financials.pegRatio, 2)} />
-            <MetricItem label="EPS" value={formatNum(financials.eps, 2)} />
-            <MetricItem label="ROE" value={formatPct(financials.roe)} />
-            <MetricItem label="Op. Margin" value={formatPct(financials.operatingMargin)} />
-            <MetricItem label="Net Margin" value={formatPct(financials.netProfitMargin)} />
-            <MetricItem label="D/E" value={formatNum(financials.debtToEquity, 2)} />
-            <MetricItem label="Current Ratio" value={formatNum(financials.currentRatio, 2)} />
-            <MetricItem label="Div. Yield" value={formatPct(financials.dividendYield)} />
-            <MetricItem label="Beta" value={formatNum(financials.beta, 2)} />
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-1">
+                  <BarChart3 className="h-4 w-4" /> Score Breakdown
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScoreBreakdown scores={verdict.scores} />
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* ── Investor Lenses ── */}
-      <div>
-        <h2 className="text-lg font-semibold mb-3">Investor Lenses</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <InvestorLensCard verdict={investorVerdicts.buffett} />
-          <InvestorLensCard verdict={investorVerdicts.graham} />
-          <InvestorLensCard verdict={investorVerdicts.lynch} />
-        </div>
-      </div>
+          {/* Key Metrics */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-1">
+                <DollarSign className="h-4 w-4" /> Key Metrics
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 text-sm">
+                <MetricItem label="P/E" value={formatNum(financials.peRatio, 1)} />
+                <MetricItem label="P/S" value={formatNum(financials.psRatio, 1)} />
+                <MetricItem label="P/B" value={formatNum(financials.pbRatio, 2)} />
+                <MetricItem label="PEG" value={formatNum(financials.pegRatio, 2)} />
+                <MetricItem label="EPS" value={formatNum(financials.eps, 2)} />
+                <MetricItem label="ROE" value={formatPct(financials.roe)} />
+                <MetricItem label="Op. Margin" value={formatPct(financials.operatingMargin)} />
+                <MetricItem label="Net Margin" value={formatPct(financials.netProfitMargin)} />
+                <MetricItem label="D/E" value={formatNum(financials.debtToEquity, 2)} />
+                <MetricItem label="Current Ratio" value={formatNum(financials.currentRatio, 2)} />
+                <MetricItem label="Div. Yield" value={formatPct(financials.dividendYield)} />
+                <MetricItem label="Beta" value={formatNum(financials.beta, 2)} />
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* ── Market Conditions + Calendar ── */}
-      <MacroCalendarPanel
-        macroData={macroData}
-        calendarData={calendarData}
-        currency={overview.currency}
-      />
+          {/* Investor Lenses */}
+          <div>
+            <h2 className="text-lg font-semibold mb-3">Investor Lenses</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <InvestorLensCard verdict={investorVerdicts.buffett} />
+              <InvestorLensCard verdict={investorVerdicts.graham} />
+              <InvestorLensCard verdict={investorVerdicts.lynch} />
+            </div>
+          </div>
+        </TabsContent>
 
-      {/* ── News ── */}
-      {news.length > 0 && <NewsPanel articles={news} />}
+        {/* ── Chart Tab ── */}
+        <TabsContent value="chart" className="mt-4">
+          <PriceChart data={priceHistory} currency={currency} ticker={overview.ticker} />
+        </TabsContent>
+
+        {/* ── Financials Tab ── */}
+        <TabsContent value="financials" className="mt-4">
+          <FinancialStatementsPanel history={financialHistory} currency={currency} />
+        </TabsContent>
+
+        {/* ── Market & News Tab ── */}
+        <TabsContent value="macro" className="space-y-6 mt-4">
+          <MacroCalendarPanel
+            macroData={macroData}
+            calendarData={calendarData}
+            currency={currency}
+          />
+          {news.length > 0 && <NewsPanel articles={news} />}
+        </TabsContent>
+
+        {/* ── How It Works Tab ── */}
+        <TabsContent value="how" className="mt-4">
+          <HowItWorksPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

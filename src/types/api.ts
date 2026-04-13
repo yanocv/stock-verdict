@@ -1,4 +1,4 @@
-import type { StockOverview, FinancialMetrics, BalanceSheet, IncomeStatement, Verdict, InvestorVerdict, NewsArticle, MacroData, CalendarData } from './index';
+import type { StockOverview, FinancialMetrics, BalanceSheet, IncomeStatement, Verdict, InvestorVerdict, NewsArticle, MacroData, CalendarData, FinancialHistory, ChartDataPoint } from './index';
 
 /**
  * The full response shape from GET /api/stock/[ticker].
@@ -17,4 +17,6 @@ export interface StockVerdictResponse {
   news: NewsArticle[];
   macroData: MacroData;
   calendarData: CalendarData;
+  financialHistory: FinancialHistory;
+  priceHistory: ChartDataPoint[];
 }

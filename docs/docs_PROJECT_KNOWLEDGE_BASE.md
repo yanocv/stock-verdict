@@ -369,15 +369,14 @@ interface Verdict {
 - [x] Financial data fetching (US & JP APIs) — [#6](https://github.com/yanocv/stock-verdict/issues/6)
 - [x] Fix per-share calculations (DCF, Graham) — [#3](https://github.com/yanocv/stock-verdict/issues/3)
 
-### Phase 3 — Frontend UX
+### Phase 3 — Frontend UX ✅
 - [x] Main verdict flow (input → loading → results) — [#2](https://github.com/yanocv/stock-verdict/issues/2)
-- [ ] **Analysis Modes:** Support for two types of analysis and verdict:
-    - Long-term hold/investment mode
-    - Day trade mode (short-term signals)
-- [ ] **Charts/Graphs Tab:** Add a tab or card to the verdict result panel for price history, technical charts, or other visualizations.
-- [ ] **Info/How It Works Tab:** Add an info page or tab explaining the score breakdown, formulas, and how verdicts are calculated, so users understand the methodology. (Needs further planning.)
-- [ ] **Auto-complete search:** As the user types, show suggestions for both stock codes and company names (uses Yahoo Finance `search`)
-- [ , long term hold and day trader can search by ticker *or* company name (not just code)
+- [x] **Auto-complete search:** Debounced search-as-you-type with ticker + company name suggestions via `/api/search` (Yahoo Finance `search`)
+- [x] **Financials Tabs:** Income Statement, Balance Sheet, Cash Flow — each with annual / quarterly toggle, multi-period columns (like Yahoo Finance)
+- [x] **Price Chart Tab:** 1-year daily close chart with 1M/3M/6M/1Y range selector (Recharts `LineChart`)
+- [x] **How It Works Tab:** Score breakdown table, verdict thresholds, investor lens rules, valuation model formulas, macro/news scoring explained, disclaimer
+- [x] **Tabbed result layout:** Overview · Chart · Financials · Market & News · How It Works
+- [ ] **Analysis Modes (planned):** Long-term hold/investment mode vs. day trade mode (short-term signals)
 
 ### Phase 4 — Intelligence Layer ✅
 - [x] Real-time macro data (VIX, S&P 500, Nikkei 225, USD/JPY, Oil, Gold) via Yahoo Finance

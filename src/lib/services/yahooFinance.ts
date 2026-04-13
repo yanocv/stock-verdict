@@ -3,7 +3,8 @@ import YahooFinance from 'yahoo-finance2';
 import type { StockOverview, FinancialMetrics, BalanceSheet, IncomeStatement, CalendarData } from '@/types';
 import { classifyCapSize } from '@/lib/classifiers/capSize';
 
-const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
+export const yf = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
+const yahooFinance = yf;
 
 /**
  * Full data bundle returned from Yahoo Finance for a single ticker.

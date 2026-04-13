@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { fetchStockData } from '@/lib/services/yahooFinance';
 import { fetchMacroData } from '@/lib/services/macroService';
 import { fetchStockNews, scoreNews } from '@/lib/services/newsService';
+import { fetchFinancialHistory, fetchPriceHistory } from '@/lib/services/financialHistoryService';
 import { generateVerdict } from '@/lib/scoring/verdictEngine';
 import { evaluateBuffett } from '@/lib/scoring/buffettScore';
 import { evaluateGraham } from '@/lib/scoring/grahamScore';
@@ -23,12 +24,17 @@ export async function GET(
     );
   }
 
+  // Normalize Japanese tickers: "7203" → "7203.T"
+  const normalizedTicker = /^\d{4}$/.test(ticker) ? `${ticker}.T` : ticker.toUpperCase();
+
   try {
-    // 1. Fetch stock data, macro data, and news in parallel
-    const [stockData, macroData, news] = await Promise.all([
-      fetchStockData(ticker),
+    // 1. Fetch all data in parallel
+    const [stockData, macroData, news, financialHistory, priceHistory] = await Promise.all([
+      fetchStockData(normalizedTicker),
       fetchMacroData(),
-      fetchStockNews(ticker),
+      fetchStockNews(normalizedTicker),
+      fetchFinancialHistory(normalizedTicker),
+      fetchPriceHistory(normalizedTicker),
     ]);
 
     const { overview, financials, balanceSheet, incomeStatement, calendarData } = stockData;
@@ -84,6 +90,8 @@ export async function GET(
       news,
       macroData,
       calendarData,
+      financialHistory,
+      priceHistory,
     };
 
     return NextResponse.json(response);
