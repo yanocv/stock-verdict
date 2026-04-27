@@ -140,13 +140,16 @@ export async function fetchFinancialHistory(ticker: string): Promise<FinancialHi
 }
 
 /**
- * Fetches 1-year daily price history for a ticker.
+ * Fetches 5 years of daily price history for a ticker.
+ * This covers all range tabs: 1D (most recent day), 5D, 1M, 6M, 1Y, 5Y, MAX.
+ * Note: Yahoo Finance `historical` with interval '1d' returns one point per
+ * trading day — so '1D' tab will show the single most recent day's close.
  */
 export async function fetchPriceHistory(ticker: string): Promise<ChartDataPoint[]> {
   try {
     const period2 = new Date();
     const period1 = new Date();
-    period1.setFullYear(period1.getFullYear() - 1);
+    period1.setFullYear(period1.getFullYear() - 5);
 
     const result: any[] = await yf.historical(ticker, {
       period1,

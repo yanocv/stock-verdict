@@ -1,0 +1,69 @@
+# Stock Verdict (KabuCheck) — Cline Project Rules
+
+## Stack
+- Next.js 16, TypeScript strict, TailwindCSS 4, shadcn/ui (Radix + CVA)
+- Recharts for visualizations, TradingView Lightweight Charts for price charts
+- yahoo-finance2 for market data, Claude API (Anthropic) for AI narrative
+- Supabase + Drizzle ORM for database, Upstash Redis for caching
+- Zustand for client UI state, TanStack Query for server state + caching
+- next-intl for i18n (EN / JA / PT), Zod for runtime validation
+- Vitest + React Testing Library + happy-dom for tests
+
+## Architecture principles
+
+### Server vs Client split
+- Move ALL data fetching, API calls, and heavy computation to Next.js Server Components or Route Handlers
+- Client Components (`'use client'`) only for: interactivity, browser APIs, event handlers, animations
+- Never fetch from Yahoo Finance / Claude / FRED directly in a Client Component
+- Use React Server Components (RSC) by default — add `'use client'` only when required
+- Pass data down as props from Server Components to Client Components
+
+### File size & structure
+- No file should exceed ~150 lines. Split into smaller modules if it grows beyond that.
+- One component per file. One hook per file. One service function per file where possible.
+- Components go in `src/components/[feature]/ComponentName.tsx`
+- Custom hooks go in `src/hooks/use[Name].ts`
+- Server-side services go in `src/lib/services/[name]Service.ts`
+- API route handlers go in `src/app/api/[route]/route.ts`
+- Types go in `src/types/index.ts` or `src/types/[domain].ts`
+- Zod schemas go in `src/validators/[domain].ts`
+
+### Custom hooks & state
+- Extract any logic > 10 lines from a component into a custom hook
+- Use Zustand stores for: language preference, theme, UI filter state, watchlist UI state
+- Use TanStack Query (`useQuery`, `useMutation`) for all server state — never `useEffect` + `fetch`
+- Keep Zustand stores small and focused — one store per domain (langStore, themeStore, watchlistStore)
+
+### Code style
+- TypeScript strict mode — no implicit `any`. Use `unknown` + type narrowing instead.
+- If `any` is truly unavoidable, add `// eslint-disable-next-line @typescript-eslint/no-explicit-any` with a comment explaining why
+- Prefer named exports over default exports
+- Use `const` arrow functions for components: `export const MyComponent = () => {}`
+- Destructure props at the function signature
+- Use early returns to avoid deep nesting
+
+## TDD — Test Driven Development
+- Write tests BEFORE or alongside implementation, never after as an afterthought
+- Every utility function in `src/lib/` must have a corresponding test in `src/lib/__tests__/`
+- Every custom hook must have a test using `renderHook` from React Testing Library
+- Every API route handler must have an integration test
+- Run `npm run test:run` after every change to verify nothing broke
+- Test file naming: `[name].test.ts` or `[name].test.tsx`
+- After fixing a bug, always run the full test suite — not just a reproduction script
+
+## After every TypeScript change
+- Run `npx tsc --noEmit` to verify no type errors before considering the task done
+
+## Documentation
+- When adding or changing a feature, update `docs/docs_APP_FEATURES.md` to reflect the change
+- When a planned feature moves from "planned" to "in progress" or "done", update the Feature Matrix table
+
+## MCP & tooling
+- If a new MCP server would meaningfully help a task (e.g. Playwright for UI verification, GitHub for issue tracking), suggest it to the user before proceeding
+- Playwright MCP is available — use it to visually verify UI changes by screenshotting the running app
+
+## Refactoring rules
+- When touching a file, refactor it to meet these standards if it doesn't already
+- Break up any component > 150 lines into sub-components
+- If a component does data fetching AND rendering, split: one Server Component for fetching, one Client Component for rendering
+- Remove dead code, unused imports, and commented-out blocks on sight
