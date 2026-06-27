@@ -9,6 +9,7 @@ import { evaluateGraham } from '@/lib/scoring/grahamScore';
 import { evaluateLynch } from '@/lib/scoring/lynchScore';
 import { scoreMacro } from '@/lib/scoring/macroScore';
 import { getBenchmarksForSector } from '@/lib/benchmarks/industries';
+import { generateAINarrative } from '@/lib/services/claudeService';
 import type { StockVerdictResponse } from '@/types';
 
 export async function GET(
@@ -76,6 +77,17 @@ export async function GET(
       }
     }
 
+    // 7. Generate AI narrative (non-blocking — null if key not set or call fails)
+    const locale = _request.headers.get('x-locale') ?? 'en';
+    const aiNarrative = await generateAINarrative({
+      overview,
+      financials,
+      verdict,
+      news,
+      macroData,
+      locale,
+    });
+
     const response: StockVerdictResponse = {
       overview,
       financials,
@@ -92,6 +104,7 @@ export async function GET(
       calendarData,
       financialHistory,
       priceHistory,
+      aiNarrative,
     };
 
     return NextResponse.json(response);

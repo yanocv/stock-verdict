@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, Loader2 } from 'lucide-react';
@@ -21,6 +22,7 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export function StockSearchBar({ onSearch, isLoading = false }: StockSearchBarProps) {
+  const t = useTranslations('common');
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -68,11 +70,11 @@ export function StockSearchBar({ onSearch, isLoading = false }: StockSearchBarPr
   }, []);
 
   const submit = useCallback((ticker: string) => {
-    const t = ticker.trim().toUpperCase();
-    if (!t) return;
-    setQuery(t);
+    const upper = ticker.trim().toUpperCase();
+    if (!upper) return;
+    setQuery(upper);
     setShowDropdown(false);
-    onSearch(t);
+    onSearch(upper);
   }, [onSearch]);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -109,7 +111,7 @@ export function StockSearchBar({ onSearch, isLoading = false }: StockSearchBarPr
             onFocus={() => {
               if (suggestions.length > 0) setShowDropdown(true);
             }}
-            placeholder="Search ticker or company name…"
+            placeholder={t('searchPlaceholder')}
             className="pr-8"
             autoComplete="off"
             spellCheck={false}
@@ -129,7 +131,7 @@ export function StockSearchBar({ onSearch, isLoading = false }: StockSearchBarPr
           ) : (
             <Search className="h-4 w-4" />
           )}
-          <span className="ml-1 hidden sm:inline">Search</span>
+          <span className="ml-1 hidden sm:inline">{t('searchButton')}</span>
         </Button>
       </div>
 

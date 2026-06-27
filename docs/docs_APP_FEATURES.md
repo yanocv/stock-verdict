@@ -1,9 +1,10 @@
 # 🧠 Stock Verdict (KabuCheck) — Complete App Features Document
 
-> **Last updated:** 2026-03-31
+> **Last updated:** 2026-06-27
 > **Repo:** [yanocv/stock-verdict](https://github.com/yanocv/stock-verdict)
 > **Codename:** KabuCheck (株チェック)
 > **Target cost:** ~$0–5/month (free tiers + Claude API)
+> **Investor profile:** GARP (Growth at a Reasonable Price) — see [docs_INVESTMENT_PHILOSOPHY.md](./docs_INVESTMENT_PHILOSOPHY.md)
 
 ---
 
@@ -34,6 +35,7 @@
 23. [Mobile App (React Native — v2)](#-mobile-app-react-native--v2)
 24. [Infrastructure & Deployment](#-infrastructure--deployment)
 25. [Full Feature Matrix](#-full-feature-matrix)
+26. [Master Parameter Reference (Modules 1–5)](#-master-parameter-reference-modules-15)
 
 ---
 
@@ -997,28 +999,128 @@ NEXT_PUBLIC_APP_URL=            # App URL for CORS/redirects
 | Financial fundamentals | ✅ | ✅ | Issue [#6](https://github.com/yanocv/stock-verdict/issues/6) |
 | Scoring engine (5 dimensions) | ✅ | ✅ | ✅ Done (PR #1) |
 | Investor lenses (Buffett/Graham/Lynch) | ✅ | ✅ | ✅ Done (PR #1) |
-| BUY/WAIT/AVOID verdict | ✅ | ✅ | ✅ Done (PR #1) |
-| Formula library (113 tests) | ✅ | ✅ | ✅ Done (PR #1) |
-| Verdict UI (frontend flow) | ✅ | ✅ | Issue [#2](https://github.com/yanocv/stock-verdict/issues/2) |
-| AI narrative (Claude) | ✅ | ✅ | Planned |
-| Price charts (TradingView) | ✅ | ✅ | Planned |
-| Score visualizations (Recharts) | ✅ | ✅ | Planned |
-| News + sentiment | ✅ | ✅ | Draft issue |
-| Macro/geopolitical scoring | ✅ | ✅ | Draft issue |
-| Calendar awareness | ✅ | ✅ | Draft issue |
-| Internationalization (EN/JA/PT) | ✅ | ✅ | Partial |
-| Watchlist | ✅ | ✅ | Planned |
-| Analyst consensus | ✅ | ✅ | Planned |
-| Context-aware position verdict (HOLD/ADD/REDUCE/EXIT) | — | ✅ | v2 — needs arch + UX design |
-| AI Market Scanner (scan market, ranked results) | — | ✅ | v2 — needs arch + UX design |
+| BUY/WAIT/AVOID verdict | ✅ | ✅ | ✅ Done |
+| Formula library (150 tests) | ✅ | ✅ | ✅ Done |
+| Verdict UI (frontend flow) | ✅ | ✅ | ✅ Done |
+| AI narrative (Claude) | ✅ | ✅ | ✅ Done — `claudeService` + `AINarrativeCard` |
+| Price charts (Recharts) | ✅ | ✅ | ✅ Done — `PriceChart` component |
+| Score visualizations (Recharts) | ✅ | ✅ | ✅ Done — `ScoreBreakdown` |
+| News + sentiment | ✅ | ✅ | ✅ Done — `NewsPanel` |
+| Macro/geopolitical scoring | ✅ | ✅ | ✅ Done — `macroScore` |
+| Calendar awareness | ✅ | ✅ | ✅ Done — `MacroCalendarPanel` |
+| Internationalization (EN/JA/PT) | ✅ | ✅ | ✅ Done — next-intl, 3 locales |
+| Explainable verdicts ("Why this verdict?") | ✅ | ✅ | ✅ Done — `VerdictExplanationPanel` |
+| Market dashboard (US + JP summary, FX) | ✅ | ✅ | ✅ Done — `MarketDashboard` + `/api/market` |
+| Watchlist (with notes, tags, target prices) | ✅ | ✅ | ✅ Done — `useWatchlist` + `WatchlistButton` |
+| Financial statements panel | ✅ | ✅ | ✅ Done — `FinancialStatementsPanel` |
+| Investor lenses (Buffett/Graham/Lynch) | ✅ | ✅ | ✅ Done — `InvestorLensCard` |
+| How It Works panel | ✅ | ✅ | ✅ Done — `HowItWorksPanel` |
+| Watchlist verdict signals (bullish/bearish/news risk) | — | ✅ | v2 |
+| Alerts (price, volume, FX, verdict, earnings) | — | ✅ | v2 |
+| Analyst consensus (bull/bear price targets) | ✅ | ✅ | v2 — Module 1 `[NEEDS-LIVE-DATA]` |
+| RSI + technical signals | ✅ | ✅ | v2 — Module 1 `[NEEDS-LIVE-DATA]` |
+| DCF valuation with sensitivity table | ✅ | ✅ | v2 — Module 2 |
+| Japan 6-gate TOPIX filter | ✅ | ✅ | v2 — Module 5 |
+| Context-aware position verdict (HOLD/ADD/REDUCE/EXIT) | — | ✅ | v2 |
+| AI Market Scanner (scan market, ranked results) | — | ✅ | v2 |
+| Earnings & event calendar | — | ✅ | v2 |
+| Portfolio risk assessment | — | ✅ | v2 — Module 3 |
+| Portfolio builder (risk-profile driven) | — | ✅ | v2 — Module 4 |
+| News summarization per stock (AI-powered) | — | ✅ | v2 |
+| Stock comparison (side-by-side verdict/valuation) | — | ✅ | v2 |
 | Competitor overlay | — | ✅ | v2 |
-| Stock screener | — | ✅ | v2 |
+| Stock screener (Module 1 full) | — | ✅ | v2 |
+| Paper trading / scenario simulator | — | ✅ | v3 |
+| Personalized insights feed | — | ✅ | v3 |
 | ESG score | — | ✅ | v2 |
 | Buyback tracker | — | ✅ | v2 |
-| React Native mobile | — | ✅ | v2 |
-| Push notifications | — | ✅ | v2 |
+| React Native mobile (iOS + Android) | — | ✅ | v2 |
+| Push notifications (price/news/verdict alerts) | — | ✅ | v2 |
+| Home screen widgets (iOS/Android) | — | ✅ | v3 |
+| AI chat ("Why did Toyota get downgraded?") | — | ✅ | v3 |
+| Investor profile onboarding quiz (Module 4 prereq) | — | ✅ | v3 |
 | E2E tests (Playwright) | — | ✅ | v2 |
 | Historical verdict tracking | — | ✅ | v2 |
+
+---
+
+## 🗺 Recommended Build Roadmap (updated)
+
+### Phase 1 — Sticky core ✅ COMPLETE
+1. ✅ Scoring engine + formula library (150 tests)
+2. ✅ Price charts (Recharts, 5Y data)
+3. ✅ i18n (EN/JA/PT)
+4. ✅ Explainable verdicts — `VerdictExplanationPanel` with weighted formula display
+5. ✅ Watchlist — `useWatchlist` + `WatchlistButton` (notes, tags, target prices, localStorage)
+6. ✅ Market dashboard — `MarketDashboard` + `/api/market` (US + JP + FX, 5-min refresh)
+7. ✅ AI narrative — `claudeService` + `AINarrativeCard` (Claude 3.5 Haiku, locale-aware)
+
+### Phase 2 — Investor utility (next)
+8. Analyst consensus + bull/bear price targets — Module 1 `[NEEDS-LIVE-DATA]`
+9. RSI + technical signals (14-day, overbought/oversold flags) — Module 1
+10. DCF valuation with WACC sensitivity table — Module 2
+11. Japan 6-gate TOPIX sector filter — Module 5
+12. Alerts (price, volume, FX, verdict change, earnings)
+13. News summaries (AI-powered, per stock)
+14. Earnings & event calendar
+
+### Phase 3 — Portfolio & advanced
+15. Portfolio risk assessment — Module 3 (VaR, Sharpe, stress tests)
+16. Portfolio builder — Module 4 (risk profile → allocation → DCA plan)
+17. Context-aware position verdict (HOLD/ADD/REDUCE/EXIT)
+18. Stock comparison (side-by-side)
+19. AI Market Scanner
+
+### Phase 4 — Mobile & differentiators
+20. React Native app (iOS + Android)
+21. Push notifications + home screen widgets
+22. Paper trading / scenario simulator
+23. Personalized insights feed
+24. AI chat ("Why did Toyota get downgraded?")
+
+### Phase 5 — Personalization (long-term)
+25. **Custom parameter settings** — Settings page where users define their own scoring weights and thresholds (e.g. "I care more about dividends than growth", "I want stricter D/E limits"). All scoring runs through the user's personal profile instead of the default weights.
+26. Advanced investor profile quiz — walks new users through their risk tolerance, market preference, holding period, and investment goal, then auto-configures Mode 1 or Mode 2 with personalized thresholds
+27. Saved screening templates — users build and name their own screener presets
+
+---
+
+## 🎯 MVP for App Store / Google Play
+
+For a strong mobile-ready MVP, the minimum viable feature set is:
+- Watchlist with notes + target prices
+- Alerts (price + verdict change)
+- Daily market summary (US + JP)
+- Per-stock verdict page with explanation
+- News summary (AI-powered, per stock)
+- Earnings/event reminders
+
+This combination creates a **daily-habit app** — users open it to see what changed, what matters, and what action to consider.
+
+---
+
+---
+
+## 📋 Master Parameter Reference (Modules 1–5)
+
+See **[docs/docs_MASTER_PARAMETERS.md](./docs_MASTER_PARAMETERS.md)** for the full parameter specification across all 5 planned modules.
+
+| Module | Description | Phase |
+|---|---|---|
+| **Module 1** — Stock Screener | Fundamental + technical signals; sector-relative P/E, FCF, RSI, analyst targets | Phase 2 |
+| **Module 2** — DCF Valuation | Revenue projections, WACC, terminal value, sensitivity table | Phase 2 |
+| **Module 3** — Portfolio Risk | Correlation, VaR, Sharpe/Sortino, stress tests, hedging | Phase 3 |
+| **Module 4** — Portfolio Builder | Risk-profile-driven allocation, ETF recs, DCA plan, IPS | Phase 3 |
+| **Module 5** — Japan 6-Gate Filter | TOPIX 33 sector-aware thresholds, multi-sector stricter-gate rule | Phase 2 |
+
+### Current implementation vs. gaps
+
+**Module 1 — already implemented:** P/E (sector-relative via benchmarks), D/E, ROE, EPS, FCF, dividend yield, 52-week position, beta.
+**Module 1 — gaps:** 5yr revenue CAGR, insider ownership %, earnings surprise history, institutional ownership change (13F), RSI, analyst bull/bear price targets.
+
+**Module 2 — already implemented:** Graham Number, Lynch Fair Value, simple DCF (single growth rate). **Gaps:** Terminal value as explicit line item, WACC from live 10yr treasury + beta, sensitivity table (±2% WACC × ±2% growth), net debt adjustment.
+
+**Module 5 — already implemented:** Sector benchmark thresholds in `src/lib/benchmarks/industries.ts` (P/E ceiling, ROE floor, D/E ceiling). **Gaps:** 6-gate sequential logic, per-gate pass/fail output UI, multi-sector stricter-gate rule, banking Tier 1 substitution.
 
 ---
 

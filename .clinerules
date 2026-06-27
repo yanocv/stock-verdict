@@ -57,6 +57,11 @@
 ## Documentation
 - When adding or changing a feature, update `docs/docs_APP_FEATURES.md` to reflect the change
 - When a planned feature moves from "planned" to "in progress" or "done", update the Feature Matrix table
+- **Investment philosophy:** All scoring, screening, and exit logic must be consistent with `docs/docs_INVESTMENT_PHILOSOPHY.md`. Read it before designing any new scoring or screening feature.
+- **Investor profile:** GARP (Growth at a Reasonable Price). Value-first entry, exit in tranches at fair value, 6–24 month holds, US + Japan markets.
+- **Two modes (Phase 2+):** Mode 1 = Value Hunter (valuation-first weights), Mode 2 = Quality Compounder (quality-first weights). All scoring should be mode-aware.
+- **Parameter specification:** `docs/docs_MASTER_PARAMETERS.md` defines all parameters for Modules 1–5. Cross-reference before implementing any new metric.
+- **Process is a funnel:** Macro → Sector → Stock screening → Valuation → Position sizing → Exit planning. Never skip steps.
 
 ## MCP & tooling
 - If a new MCP server would meaningfully help a task (e.g. Playwright for UI verification, GitHub for issue tracking), suggest it to the user before proceeding

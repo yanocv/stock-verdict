@@ -1,12 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import type { StockVerdictResponse } from '@/types';
+import { useLangStore } from '@/state/langStore';
 
 interface StockError {
   error: string;
 }
 
-async function fetchStockVerdict(ticker: string): Promise<StockVerdictResponse> {
-  const res = await fetch(`/api/stock/${encodeURIComponent(ticker)}`);
+async function fetchStockVerdict(ticker: string, locale: string): Promise<StockVerdictResponse> {
+  const res = await fetch(`/api/stock/${encodeURIComponent(ticker)}`, {
+    headers: { 'x-locale': locale },
+  });
 
   if (!res.ok) {
     const body: StockError = await res.json().catch(() => ({ error: res.statusText }));
@@ -18,14 +21,16 @@ async function fetchStockVerdict(ticker: string): Promise<StockVerdictResponse> 
 
 /**
  * Custom hook to fetch and cache stock verdict data via TanStack Query.
+ * Forwards the current locale so Claude responds in the user's language.
  *
  * @param ticker - Stock ticker symbol (e.g. "AAPL", "7203")
  * @param enabled - Whether the query should run (default: false until user submits)
  */
 export function useStock(ticker: string, enabled: boolean = false) {
+  const { locale } = useLangStore();
   return useQuery<StockVerdictResponse, Error>({
-    queryKey: ['stock-verdict', ticker.toUpperCase()],
-    queryFn: () => fetchStockVerdict(ticker),
+    queryKey: ['stock-verdict', ticker.toUpperCase(), locale],
+    queryFn: () => fetchStockVerdict(ticker, locale),
     enabled: enabled && ticker.trim().length > 0,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 1,

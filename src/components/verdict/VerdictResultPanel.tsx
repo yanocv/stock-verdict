@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import type { StockVerdictResponse } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -11,6 +12,9 @@ import { MacroCalendarPanel } from './MacroCalendarPanel';
 import { FinancialStatementsPanel } from './FinancialStatementsPanel';
 import { PriceChart } from './PriceChart';
 import { HowItWorksPanel } from './HowItWorksPanel';
+import { VerdictExplanationPanel } from './VerdictExplanationPanel';
+import { WatchlistButton } from './WatchlistButton';
+import { AINarrativeCard } from './AINarrativeCard';
 import {
   TrendingUp,
   TrendingDown,
@@ -51,6 +55,7 @@ function formatNum(value: number | null, decimals: number = 2): string {
 }
 
 export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
+  const t = useTranslations('common');
   const { overview, financials, verdict, investorVerdicts, news, macroData, calendarData, financialHistory, priceHistory } = data;
   const currency = overview.currency;
 
@@ -76,14 +81,15 @@ export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
               </CardDescription>
             </div>
 
-            <div className="text-right">
+            <div className="text-right flex flex-col items-end gap-2">
               <div className="text-3xl font-bold">
                 {formatCurrency(overview.currentPrice, currency)}
               </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                52wk: {formatCurrency(overview.fiftyTwoWeekLow, currency)} –{' '}
+              <div className="text-xs text-muted-foreground">
+                {t('weekRange')}: {formatCurrency(overview.fiftyTwoWeekLow, currency)} –{' '}
                 {formatCurrency(overview.fiftyTwoWeekHigh, currency)}
               </div>
+              <WatchlistButton ticker={overview.ticker} name={overview.name} />
             </div>
           </div>
         </CardHeader>
@@ -101,11 +107,11 @@ export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-4 text-sm">
                 <span>
-                  Score:{' '}
+                  {t('score')}:{' '}
                   <span className="font-bold text-base">{verdict.scores.overall}/10</span>
                 </span>
                 <span>
-                  Confidence:{' '}
+                  {t('confidence')}:{' '}
                   <span className="font-bold text-base">{verdict.confidence}%</span>
                 </span>
                 <span className="text-muted-foreground">
@@ -117,14 +123,14 @@ export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
             {verdict.fairValue !== null && (
               <div className="text-right text-sm">
                 <div>
-                  Fair Value:{' '}
+                  {t('fairValue')}:{' '}
                   <span className="font-semibold">
                     {formatCurrency(verdict.fairValue, currency)}
                   </span>
                 </div>
                 {verdict.suggestedBuyPrice !== null && (
                   <div className="text-muted-foreground">
-                    Buy Below:{' '}
+                    {t('buyBelow')}:{' '}
                     {formatCurrency(verdict.suggestedBuyPrice, currency)}
                   </div>
                 )}
@@ -136,27 +142,31 @@ export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
 
       {/* ── Main Tabbed Layout ── */}
       <Tabs defaultValue="overview">
-        <TabsList className="flex-wrap h-auto gap-1">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="chart">Chart</TabsTrigger>
-          <TabsTrigger value="financials">Financials</TabsTrigger>
-          <TabsTrigger value="macro">Market &amp; News</TabsTrigger>
-          <TabsTrigger value="how">How It Works</TabsTrigger>
-        </TabsList>
+          <TabsList className="flex-wrap h-auto gap-1">
+            <TabsTrigger value="overview">{t('tabOverview')}</TabsTrigger>
+            <TabsTrigger value="why">{t('tabWhyVerdict')}</TabsTrigger>
+            <TabsTrigger value="chart">{t('tabChart')}</TabsTrigger>
+            <TabsTrigger value="financials">{t('tabFinancials')}</TabsTrigger>
+            <TabsTrigger value="macro">{t('tabMarketNews')}</TabsTrigger>
+            <TabsTrigger value="how">{t('tabHowItWorks')}</TabsTrigger>
+          </TabsList>
 
         {/* ── Overview Tab ── */}
         <TabsContent value="overview" className="space-y-6 mt-4">
+          {/* AI Narrative */}
+          {data.aiNarrative && <AINarrativeCard narrative={data.aiNarrative} />}
+
           {/* Reasons & Score */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Analysis</CardTitle>
+              <CardTitle className="text-base">{t('analysis')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {verdict.reasons.bullish.length > 0 && (
                   <div>
                     <h4 className="text-sm font-semibold text-green-600 flex items-center gap-1 mb-2">
-                      <TrendingUp className="h-4 w-4" /> Bullish
+                      <TrendingUp className="h-4 w-4" /> {t('bullish')}
                     </h4>
                     <ul className="space-y-1">
                       {verdict.reasons.bullish.map((r) => (
@@ -171,7 +181,7 @@ export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
                 {verdict.reasons.bearish.length > 0 && (
                   <div>
                     <h4 className="text-sm font-semibold text-red-600 flex items-center gap-1 mb-2">
-                      <TrendingDown className="h-4 w-4" /> Bearish
+                      <TrendingDown className="h-4 w-4" /> {t('bearish')}
                     </h4>
                     <ul className="space-y-1">
                       {verdict.reasons.bearish.map((r) => (
@@ -187,7 +197,7 @@ export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
                   verdict.reasons.bearish.length === 0 && (
                     <p className="text-sm text-muted-foreground">
                       <AlertTriangle className="h-4 w-4 inline mr-1" />
-                      Insufficient data for detailed analysis.
+                      {t('insufficientData')}
                     </p>
                   )}
               </CardContent>
@@ -196,7 +206,7 @@ export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-1">
-                  <BarChart3 className="h-4 w-4" /> Score Breakdown
+                  <BarChart3 className="h-4 w-4" /> {t('scoreBreakdown')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -208,9 +218,9 @@ export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
           {/* Key Metrics */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-1">
-                <DollarSign className="h-4 w-4" /> Key Metrics
-              </CardTitle>
+                <CardTitle className="text-base flex items-center gap-1">
+                  <DollarSign className="h-4 w-4" /> {t('keyMetrics')}
+                </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 text-sm">
@@ -232,13 +242,18 @@ export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
 
           {/* Investor Lenses */}
           <div>
-            <h2 className="text-lg font-semibold mb-3">Investor Lenses</h2>
+            <h2 className="text-lg font-semibold mb-3">{t('investorLenses')}</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <InvestorLensCard verdict={investorVerdicts.buffett} />
               <InvestorLensCard verdict={investorVerdicts.graham} />
               <InvestorLensCard verdict={investorVerdicts.lynch} />
             </div>
           </div>
+        </TabsContent>
+
+        {/* ── Why This Verdict Tab ── */}
+        <TabsContent value="why" className="mt-4">
+          <VerdictExplanationPanel verdict={verdict} investorVerdicts={investorVerdicts} />
         </TabsContent>
 
         {/* ── Chart Tab ── */}

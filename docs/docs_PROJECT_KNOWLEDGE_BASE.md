@@ -1,6 +1,6 @@
 # 📚 Stock Verdict — Project Knowledge Base
 
-> **Last updated:** 2026-03-31
+> **Last updated:** 2026-06-27
 > **Repo:** [yanocv/stock-verdict](https://github.com/yanocv/stock-verdict)
 > **Description:** A stock trading support tool for tracking U.S. and Japanese markets, currency trends, and related financial news. Designed to assist investors by providing tailored insights based on real-time and scraped data.
 
@@ -482,13 +482,14 @@ interface Verdict {
 
 | Language | Code | Status |
 |----------|------|--------|
-| English | `en` | ✅ Default |
-| Japanese | `ja` | 🟡 Planned |
-| Portuguese | `pt` | 🟡 Planned |
+| English | `en` | ✅ Done |
+| Japanese | `ja` | ✅ Done |
+| Portuguese | `pt` | ✅ Done |
 
 - Using `next-intl` for translations
 - `langStore` (Zustand) for client-side language state
-- ⚠️ HTML `lang` attribute is hardcoded to `"en"` — needs fix
+- Translation files: `src/messages/en/common.json`, `ja/common.json`, `pt/common.json`
+- Claude AI narrative responds in the user's current locale via `x-locale` header
 
 ---
 
@@ -533,6 +534,46 @@ npm run dev                  # http://localhost:3000
 | 2026-03-31 | Weighted verdict (30/20/20/15/15) | Balance fundamentals with technicals and macro |
 | 2026-03-31 | Support US + JP markets | Owner's investment focus |
 | 2026-03-31 | EN/JA/PT language support | Owner's language needs |
+| 2026-06-06 | claudeService uses fetch not SDK | Zero extra npm dependency; Anthropic REST API is stable |
+| 2026-06-06 | Watchlist stored in localStorage | No auth required for Phase 1; migrate to Supabase in v2 |
+| 2026-06-06 | Market dashboard fails silently | Index data is supplementary; never block the main flow |
+| 2026-06-27 | 5-module parameter spec added | docs/docs_MASTER_PARAMETERS.md defines all parameters for Modules 1–5 |
+
+---
+
+## 🗺 Phase Status (as of 2026-06-27)
+
+### Phase 1 — ✅ COMPLETE (150 tests, TypeScript clean)
+
+| Item | Component / File | Status |
+|------|-----------------|--------|
+| Scoring engine + formula library | `src/lib/formulas/`, `src/lib/scoring/` | ✅ |
+| Price charts | `PriceChart.tsx` (Recharts) | ✅ |
+| i18n EN/JA/PT | `src/messages/`, `src/i18n/` | ✅ |
+| Explainable verdicts | `VerdictExplanationPanel.tsx` | ✅ |
+| Watchlist | `useWatchlist.ts` + `WatchlistButton.tsx` | ✅ |
+| Market dashboard | `MarketDashboard.tsx` + `/api/market` | ✅ |
+| AI narrative | `claudeService.ts` + `AINarrativeCard.tsx` | ✅ |
+
+### Phase 2 — Next (see docs_MASTER_PARAMETERS.md for parameter specs)
+
+| Item | Module | Priority |
+|------|--------|----------|
+| Analyst consensus + bull/bear targets | Module 1 `[NEEDS-LIVE-DATA]` | High |
+| RSI (14-day) + overbought/oversold | Module 1 `[NEEDS-LIVE-DATA]` | High |
+| DCF with terminal value + WACC sensitivity table | Module 2 `[CRITICAL-GAP]` | High |
+| Japan 6-gate TOPIX filter | Module 5 | High |
+| Alerts (price, verdict change, earnings) | — | Medium |
+| News AI summaries per stock | — | Medium |
+| Earnings & event calendar | — | Medium |
+
+### Phase 3 — Portfolio tools
+
+| Item | Module | Priority |
+|------|--------|----------|
+| Portfolio risk (VaR, Sharpe, correlation) | Module 3 | v2 |
+| Portfolio builder (risk profile → DCA plan) | Module 4 | v2 |
+| Context-aware position verdict (HOLD/ADD/REDUCE/EXIT) | — | v2 |
 
 ---
 

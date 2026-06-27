@@ -19,4 +19,5 @@ export interface StockVerdictResponse {
   calendarData: CalendarData;
   financialHistory: FinancialHistory;
   priceHistory: ChartDataPoint[];
+  aiNarrative: string | null;
 }

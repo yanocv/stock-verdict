@@ -13,10 +13,9 @@ const bundles: Record<Locale, LocaleBundle> = {
   pt: { common: ptCommon as Messages },
 };
 
-export function getMessages(locale: Locale): Messages {
-  // Merge namespaces (single namespace for now)
-  const entry = bundles[locale] ?? bundles.en;
-  return Object.values(entry).reduce((acc, ns) => Object.assign(acc, ns), {} as Messages);
+export function getMessages(locale: Locale): LocaleBundle {
+  // Return the namespaced bundle so next-intl can resolve useTranslations('common')
+  return bundles[locale] ?? bundles.en;
 }
 
 // Future extension: lazy dynamic import
