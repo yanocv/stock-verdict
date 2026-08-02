@@ -15,6 +15,9 @@ import { HowItWorksPanel } from './HowItWorksPanel';
 import { VerdictExplanationPanel } from './VerdictExplanationPanel';
 import { WatchlistButton } from './WatchlistButton';
 import { AINarrativeCard } from './AINarrativeCard';
+import { AnalystConsensusCard } from './AnalystConsensusCard';
+import { TechnicalSignalsCard } from './TechnicalSignalsCard';
+import { DCFSensitivityCard } from './DCFSensitivityCard';
 import {
   TrendingUp,
   TrendingDown,
@@ -56,7 +59,7 @@ function formatNum(value: number | null, decimals: number = 2): string {
 
 export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
   const t = useTranslations('common');
-  const { overview, financials, verdict, investorVerdicts, news, macroData, calendarData, financialHistory, priceHistory } = data;
+  const { overview, financials, verdict, investorVerdicts, news, macroData, calendarData, financialHistory, priceHistory, analystConsensus, technicalIndicators, dcfAnalysis } = data;
   const currency = overview.currency;
 
   return (
@@ -249,6 +252,27 @@ export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
               <InvestorLensCard verdict={investorVerdicts.lynch} />
             </div>
           </div>
+
+          {/* Analyst Consensus + Technical Signals */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <AnalystConsensusCard
+              consensus={analystConsensus}
+              currentPrice={overview.currentPrice}
+              currency={currency}
+            />
+            <TechnicalSignalsCard
+              indicators={technicalIndicators}
+              currentPrice={overview.currentPrice}
+              currency={currency}
+            />
+          </div>
+
+          {/* DCF Sensitivity Table */}
+          <DCFSensitivityCard
+            dcf={dcfAnalysis}
+            currentPrice={overview.currentPrice}
+            currency={currency}
+          />
         </TabsContent>
 
         {/* ── Why This Verdict Tab ── */}

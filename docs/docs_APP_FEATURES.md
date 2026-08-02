@@ -377,7 +377,7 @@ Displayed alongside scores in the UI
 | Piotroski F-Score | 0–9 | Strong (7–9) / Moderate (4–6) / Weak (0–3) |
 | Risk Score | 1–10 | Composite risk assessment |
 
-### Test Coverage: **113 unit tests** (all passing)
+### Test Coverage: **247 tests passing** — 85.4% branch / 95.6% statement / 100% function (2026-08-02)
 
 ---
 
@@ -1099,20 +1099,22 @@ NEXT_PUBLIC_APP_URL=            # App URL for CORS/redirects
 
 ## 🗺 Recommended Build Roadmap (updated)
 
-### Phase 1 — Sticky core ✅ COMPLETE
-1. ✅ Scoring engine + formula library (150 tests)
-2. ✅ Price charts (Recharts, 5Y data)
+### Phase 0–1 — Foundation + Sticky core ✅ COMPLETE
+1. ✅ Scoring engine + formula library (247 tests, 85.4% branch coverage)
+2. ✅ Price charts (Recharts)
 3. ✅ i18n (EN/JA/PT)
-4. ✅ Explainable verdicts — `VerdictExplanationPanel` with weighted formula display
+4. ✅ Explainable verdicts — `VerdictExplanationPanel`
 5. ✅ Watchlist — `useWatchlist` + `WatchlistButton` (notes, tags, target prices, localStorage)
 6. ✅ Market dashboard — `MarketDashboard` + `/api/market` (US + JP + FX, 5-min refresh)
 7. ✅ AI narrative — `claudeService` + `AINarrativeCard` (Claude 3.5 Haiku, locale-aware)
+8. ✅ Test coverage: 85.4% branches / 95.6% statements / 100% functions
 
-### Phase 2 — Investor utility (next)
-8. Analyst consensus + bull/bear price targets — Module 1 `[NEEDS-LIVE-DATA]`
-9. RSI + technical signals (14-day, overbought/oversold flags) — Module 1
-10. DCF valuation with WACC sensitivity table — Module 2
-11. Japan 6-gate TOPIX sector filter — Module 5
+### Phase 2 — CI + Investor utility 🔨 IN PROGRESS
+0. 🔴 **NEXT: GitHub Actions CI pipeline** — `.github/workflows/ci.yml` (lint + typecheck + test on every PR)
+1. Analyst consensus + bull/bear price targets — Module 1 `[NEEDS-LIVE-DATA]`
+2. RSI + technical signals (14-day, overbought/oversold flags) — Module 1
+3. DCF valuation with WACC sensitivity table — Module 2
+4. Japan 6-gate TOPIX sector filter — Module 5
 12. Alerts (price, volume, FX, verdict change, earnings)
 13. News summaries (AI-powered, per stock)
 14. Earnings & event calendar

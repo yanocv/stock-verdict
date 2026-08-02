@@ -6,6 +6,7 @@ import type {
   VerdictScore,
 } from '@/types';
 import type { IndustryBenchmarks } from '@/lib/benchmarks/industries';
+import type { TechnicalIndicators } from '@/types/technicals';
 import { classifyLynchCategory } from '@/lib/classifiers/lynchCategory';
 import { dcfFairValue } from '@/lib/formulas/valuation';
 
@@ -15,8 +16,9 @@ export interface VerdictEngineParams {
   price: number;
   industryBenchmarks: IndustryBenchmarks;
   sector?: string;
-  macroScore?: number;  // 0–10, defaults to 5 (neutral) when not provided
-  newsScore?: number;   // 0–10, defaults to 5 (neutral) when not provided
+  macroScore?: number;          // 0–10, defaults to 5 (neutral) when not provided
+  newsScore?: number;           // 0–10, defaults to 5 (neutral) when not provided
+  technicalIndicators?: TechnicalIndicators | null; // RSI + SMA signals from price history
   /**
    * DCF fair value per share (pre-calculated with real sharesOutstanding).
    * When provided, the margin of safety is incorporated into the valuation score.
@@ -30,8 +32,9 @@ export interface VerdictEngineParams {
  * - Valuation:  35%  ← highest priority for value investors
  * - Financials: 20%  ← quality check
  * - Health:     20%  ← survival check
- * - Technical:  12%
- * - Macro/News: 13%
+ * - Technical:  12%  ← real RSI/SMA when available, beta-proxy fallback
+ * - Macro:       7%
+ * - News:        6%
  *
  * Score > 7 = BUY, 4–7 = WAIT, < 4 = AVOID
  *
@@ -47,6 +50,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     sector = '',
     macroScore: macroScoreInput,
     newsScore: newsScoreInput,
+    technicalIndicators,
     dcfFairValuePerShare,
   } = params;
 
@@ -116,36 +120,61 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
 
   healthScore = Math.max(0, Math.min(10, healthScore));
 
-  // --- Technical Score (0-10) — proxy based on available data ---
-  let technicalScore = 5;
-  const beta = financials.beta ?? 1;
+  // --- Technical Score (0-10) ---
+  // Uses real RSI/SMA data when available; falls back to fundamental proxies.
   const epsGrowth = financials.epsGrowth ?? 0;
   const revenueGrowth = financials.revenueGrowth ?? 0;
+  let technicalScore = 5;
 
-  if (beta > 0 && beta < 1.2) technicalScore += 1;
-  else if (beta > 2) technicalScore -= 1.5;
+  if (technicalIndicators) {
+    // RSI signal
+    if (technicalIndicators.rsiSignal === 'oversold')      technicalScore += 2;    // potential bounce
+    else if (technicalIndicators.rsiSignal === 'overbought') technicalScore -= 1.5; // extended, risk of pullback
 
-  if (epsGrowth > 15) technicalScore += 2;
-  else if (epsGrowth > 5) technicalScore += 0.5;
-  else if (epsGrowth < 0) technicalScore -= 2;
+    // Trend: price vs SMA200 (primary trend direction)
+    if (technicalIndicators.trendVsSma200 === 'above')      technicalScore += 1.5;  // uptrend confirmed
+    else if (technicalIndicators.trendVsSma200 === 'below') technicalScore -= 1.5;  // downtrend
 
-  if (revenueGrowth > 10) technicalScore += 1;
-  else if (revenueGrowth < 0) technicalScore -= 1;
+    // Trend: price vs SMA50 (near-term momentum)
+    if (technicalIndicators.trendVsSma50 === 'above')       technicalScore += 1;    // near-term bullish
+    else if (technicalIndicators.trendVsSma50 === 'below')  technicalScore -= 0.5;
+
+    // 52-week position
+    const pos = technicalIndicators.fiftyTwoWeekPosition;
+    if (pos !== null) {
+      if (pos < 20)  technicalScore += 1;   // near 52wk low — potential value entry
+      else if (pos > 90) technicalScore -= 1; // near 52wk high — limited upside
+    }
+  } else {
+    // Fallback: fundamental proxies when no price history is available
+    const beta = financials.beta ?? 1;
+    if (beta > 0 && beta < 1.2) technicalScore += 1;
+    else if (beta > 2)           technicalScore -= 1.5;
+
+    if (epsGrowth > 15)      technicalScore += 2;
+    else if (epsGrowth > 5)  technicalScore += 0.5;
+    else if (epsGrowth < 0)  technicalScore -= 2;
+
+    if (revenueGrowth > 10)  technicalScore += 1;
+    else if (revenueGrowth < 0) technicalScore -= 1;
+  }
 
   technicalScore = Math.max(0, Math.min(10, technicalScore));
 
-  // --- Macro Score (0-10) ---
+  // --- Macro / News Scores (0-10) ---
   const macroScore = macroScoreInput ?? 5;
   const newsScore = newsScoreInput ?? 5;
 
   // --- Weighted Overall Score ---
   // GARP Mode 1 (Value Hunter): valuation is the highest priority
+  // Weights: Valuation 35% | Financials 20% | Health 20% | Technical 12% | Macro 7% | News 6%
   const overall =
     financialsScore * 0.20 +
     valuationScore  * 0.35 +
     healthScore     * 0.20 +
     technicalScore  * 0.12 +
-    macroScore      * 0.13;
+    macroScore      * 0.07 +
+    newsScore       * 0.06;
 
   const scores: VerdictScore = {
     overall: Math.round(overall * 10) / 10,

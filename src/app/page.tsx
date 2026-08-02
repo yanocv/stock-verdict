@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,8 @@ import { useStock } from '@/hooks/useStock';
 import { StockSearchBar } from '@/components/stock/StockSearchBar';
 import { VerdictResultPanel } from '@/components/verdict/VerdictResultPanel';
 import { MarketDashboard } from '@/components/market/MarketDashboard';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, ScanLine } from 'lucide-react';
+import Link from 'next/link';
 
 export default function Home() {
   const t = useTranslations('common');
@@ -24,6 +25,17 @@ export default function Home() {
     setSubmitted(true);
   }, []);
 
+  // Auto-trigger verdict when navigated from screener (?ticker=XXXX)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get('ticker');
+    if (t) {
+      handleSearch(t.toUpperCase());
+      // Clean the URL without reload
+      window.history.replaceState({}, '', '/');
+    }
+  }, [handleSearch]);
+
   return (
     <div className="min-h-screen flex flex-col items-center p-6 sm:p-8 gap-8 font-[family-name:var(--font-geist-sans)]">
       {/* ── Header ── */}
@@ -35,6 +47,13 @@ export default function Home() {
         </div>
         <h1 className="text-4xl font-bold tracking-tight">{t('appTitle')}</h1>
         <p className="text-muted-foreground text-base">{t('appSubtitle')}</p>
+        <Link
+          href="/screener"
+          className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+        >
+          <ScanLine className="w-3.5 h-3.5" />
+          Find BUY stocks — Nikkei Screener
+        </Link>
       </header>
 
       {/* ── Search Bar ── */}

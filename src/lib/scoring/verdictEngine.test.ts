@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { generateVerdict } from './verdictEngine';
 import { DEFAULT_BENCHMARKS } from '@/lib/benchmarks/industries';
 import type { FinancialMetrics, BalanceSheet } from '@/types';
+import type { TechnicalIndicators } from '@/types/technicals';
 
 const strongMetrics: FinancialMetrics = {
   eps: 10,
@@ -234,5 +235,191 @@ describe('generateVerdict', () => {
     });
     expect(result.suggestedBuyPrice).not.toBeNull();
     expect(result.suggestedBuyPrice).toBeGreaterThan(0);
+  });
+});
+
+// ── Group A: Arithmetic integrity ─────────────────────────────────────────
+describe('arithmetic integrity', () => {
+  it('scores.overall equals the weighted sum of component scores', () => {
+    const r = generateVerdict({ financials: strongMetrics, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS });
+    const expected =
+      r.scores.financials * 0.20 +
+      r.scores.valuation  * 0.35 +
+      r.scores.health     * 0.20 +
+      r.scores.technical  * 0.12 +
+      r.scores.macro      * 0.07 +
+      r.scores.news       * 0.06;
+    expect(r.scores.overall).toBeCloseTo(expected, 1);
+  });
+
+  it('all component scores are within 0–10', () => {
+    const r = generateVerdict({ financials: weakMetrics, balanceSheet, price: 50, industryBenchmarks: DEFAULT_BENCHMARKS });
+    for (const [key, val] of Object.entries(r.scores)) {
+      expect(val, `${key} out of range`).toBeGreaterThanOrEqual(0);
+      expect(val, `${key} out of range`).toBeLessThanOrEqual(10);
+    }
+  });
+});
+
+// ── Group B: Verdict boundary exactness ───────────────────────────────────
+describe('verdict boundaries', () => {
+  it('score > 7.0 is BUY', () => {
+    const r = generateVerdict({
+      financials: strongMetrics, balanceSheet, price: 50,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+      dcfFairValuePerShare: 200, macroScore: 9, newsScore: 9,
+    });
+    expect(r.recommendation).toBe('BUY');
+    expect(r.scores.overall).toBeGreaterThan(7);
+  });
+
+  it('score < 4.0 is AVOID', () => {
+    const r = generateVerdict({
+      financials: weakMetrics, balanceSheet, price: 500,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+      macroScore: 1, newsScore: 1, dcfFairValuePerShare: 10,
+    });
+    expect(r.recommendation).toBe('AVOID');
+    expect(r.scores.overall).toBeLessThan(4);
+  });
+});
+
+// ── Group C: Monotonicity ─────────────────────────────────────────────────
+describe('monotonicity — improving a single metric must not lower the score', () => {
+  it('lower PE improves or maintains the overall score', () => {
+    const base   = generateVerdict({ financials: { ...strongMetrics, peRatio: 30 }, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS });
+    const better = generateVerdict({ financials: { ...strongMetrics, peRatio: 10 }, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS });
+    expect(better.scores.overall).toBeGreaterThanOrEqual(base.scores.overall);
+  });
+
+  it('higher ROE improves or maintains the overall score', () => {
+    const base   = generateVerdict({ financials: { ...strongMetrics, roe: 10 }, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS });
+    const better = generateVerdict({ financials: { ...strongMetrics, roe: 30 }, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS });
+    expect(better.scores.overall).toBeGreaterThanOrEqual(base.scores.overall);
+  });
+
+  it('positive FCF beats negative FCF', () => {
+    const base   = generateVerdict({ financials: { ...strongMetrics, freeCashFlow: -1 }, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS });
+    const better = generateVerdict({ financials: { ...strongMetrics, freeCashFlow: 1_000_000 }, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS });
+    expect(better.scores.overall).toBeGreaterThan(base.scores.overall);
+  });
+
+  it('lower debt/equity improves or maintains the overall score', () => {
+    const base   = generateVerdict({ financials: { ...strongMetrics, debtToEquity: 3 }, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS });
+    const better = generateVerdict({ financials: { ...strongMetrics, debtToEquity: 0.1 }, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS });
+    expect(better.scores.overall).toBeGreaterThanOrEqual(base.scores.overall);
+  });
+
+  it('higher current ratio improves or maintains the overall score', () => {
+    const base   = generateVerdict({ financials: { ...strongMetrics, currentRatio: 0.8 }, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS });
+    const better = generateVerdict({ financials: { ...strongMetrics, currentRatio: 2.5 }, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS });
+    expect(better.scores.overall).toBeGreaterThanOrEqual(base.scores.overall);
+  });
+});
+
+// ── Group D: newsScore actually affects the outcome ───────────────────────
+describe('newsScore influence', () => {
+  it('high news sentiment produces a higher score than low news sentiment', () => {
+    const bullish = generateVerdict({ financials: strongMetrics, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS, newsScore: 9 });
+    const bearish  = generateVerdict({ financials: strongMetrics, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS, newsScore: 1 });
+    expect(bullish.scores.overall).toBeGreaterThan(bearish.scores.overall);
+  });
+
+  it('newsScore delta matches the 6% weight', () => {
+    const high = generateVerdict({ financials: strongMetrics, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS, newsScore: 10 });
+    const low  = generateVerdict({ financials: strongMetrics, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS, newsScore: 0 });
+    // 10-point swing × 6% weight = 0.6 point overall difference
+    expect(high.scores.overall - low.scores.overall).toBeCloseTo(0.6, 1);
+  });
+});
+
+// ── Group E: Real technical signals ──────────────────────────────────────
+describe('technical indicators wiring', () => {
+  const oversoldUptrend: TechnicalIndicators = {
+    rsi: 25, rsiSignal: 'oversold', fiftyTwoWeekPosition: 15,
+    sma50: 140, sma200: 130, trendVsSma50: 'above', trendVsSma200: 'above',
+  };
+  const overboughtDowntrend: TechnicalIndicators = {
+    rsi: 78, rsiSignal: 'overbought', fiftyTwoWeekPosition: 95,
+    sma50: 160, sma200: 170, trendVsSma50: 'below', trendVsSma200: 'below',
+  };
+
+  it('oversold + uptrend gives a higher technical score than overbought + downtrend', () => {
+    const bull = generateVerdict({ financials: strongMetrics, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS, technicalIndicators: oversoldUptrend });
+    const bear = generateVerdict({ financials: strongMetrics, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS, technicalIndicators: overboughtDowntrend });
+    expect(bull.scores.technical).toBeGreaterThan(bear.scores.technical);
+  });
+
+  it('real technical signals produce a valid score within 0–10', () => {
+    const r = generateVerdict({ financials: strongMetrics, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS, technicalIndicators: oversoldUptrend });
+    expect(r.scores.technical).toBeGreaterThanOrEqual(0);
+    expect(r.scores.technical).toBeLessThanOrEqual(10);
+  });
+
+  it('null technicalIndicators falls back to proxy without crashing', () => {
+    expect(() => generateVerdict({
+      financials: strongMetrics, balanceSheet, price: 150,
+      industryBenchmarks: DEFAULT_BENCHMARKS, technicalIndicators: null,
+    })).not.toThrow();
+  });
+});
+
+// ── Group F: Archetype scenarios ──────────────────────────────────────────
+describe('archetype scenarios', () => {
+  const nullMetrics: FinancialMetrics = {
+    eps: null, roe: null, netProfitMargin: null, peRatio: null,
+    psRatio: null, pegRatio: null, pbRatio: null, debtToEquity: null,
+    currentRatio: null, freeCashFlow: null, operatingMargin: null,
+    revenueGrowth: null, epsGrowth: null, dividendYield: null,
+    payoutRatio: null, beta: null,
+  };
+
+  it('quality compounder (high ROE, FCF+, fair PE, 40%+ DCF MoS) is BUY', () => {
+    const r = generateVerdict({
+      financials: { ...strongMetrics, roe: 30, peRatio: 18, freeCashFlow: 2_000_000 },
+      balanceSheet, price: 100,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+      dcfFairValuePerShare: 170,
+      macroScore: 6, newsScore: 6,
+    });
+    expect(r.recommendation).toBe('BUY');
+  });
+
+  it('value trap (low PE but negative FCF, declining revenue) is WAIT or AVOID', () => {
+    const r = generateVerdict({
+      financials: { ...weakMetrics, peRatio: 8, freeCashFlow: -200_000, revenueGrowth: -15 },
+      balanceSheet, price: 30,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+      macroScore: 5, newsScore: 5,
+    });
+    expect(['WAIT', 'AVOID']).toContain(r.recommendation);
+  });
+
+  it('overpriced growth stock (high PE/PS, price above DCF) is WAIT or AVOID', () => {
+    const r = generateVerdict({
+      financials: { ...strongMetrics, peRatio: 80, psRatio: 15, pegRatio: 3 },
+      balanceSheet, price: 500,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+      dcfFairValuePerShare: 200,
+      macroScore: 5, newsScore: 5,
+    });
+    expect(['WAIT', 'AVOID']).toContain(r.recommendation);
+  });
+
+  it('zombie company (negative FCF, high debt, low current ratio) is AVOID', () => {
+    const r = generateVerdict({
+      financials: { ...weakMetrics, freeCashFlow: -1_000_000, debtToEquity: 5, currentRatio: 0.4 },
+      balanceSheet, price: 5,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+      macroScore: 3, newsScore: 2,
+    });
+    expect(r.recommendation).toBe('AVOID');
+  });
+
+  it('all-null metrics does not crash and returns a valid verdict', () => {
+    expect(() => generateVerdict({
+      financials: nullMetrics, balanceSheet, price: 50,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+    })).not.toThrow();
   });
 });

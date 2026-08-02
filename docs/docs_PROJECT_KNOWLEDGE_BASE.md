@@ -34,6 +34,14 @@ Build a **stock verdict engine** that takes a ticker (US or JP), gathers real-ti
 
 The app should feel like having Buffett, Graham, and Peter Lynch all reviewing one stock for you.
 
+### Quality Goal — Error Handling Coverage
+
+Every API call, external service (`yahooFinance`, `claudeService`, `macroService`, `newsService`), and financial formula must handle failure gracefully: null returns, try/catch at integration points, Zod validation of untrusted API responses, and no unhandled promise rejections. Tests must cover error path scenarios — malformed API data, network failure, division-by-zero in formulas, and null/undefined metric inputs.
+
+### Architecture Goal — Maximise Next.js Server Components
+
+Move data fetching, scoring, and heavy computation to React Server Components and API Route Handlers wherever possible. Client components (`'use client'`) should be limited to UI interactions, state (Zustand, TanStack Query), and browser-only APIs (localStorage, watchlist). Benefits: smaller client bundles, no API key exposure, better SEO, faster initial page load.
+
 ---
 
 ## 🌍 Target Markets
@@ -316,11 +324,12 @@ interface Verdict {
 
 | Dimension | Weight | Source |
 |-----------|--------|--------|
-| Financials | 30% | Ratios (PE, ROE, margins, growth) |
-| Valuation | 20% | Graham, Lynch, DCF fair values |
-| Health | 20% | Altman Z, Piotroski F, Risk Score |
-| Technical | 15% | ⚠️ Currently hardcoded to 5 |
-| Macro/News | 15% | ⚠️ Currently hardcoded to 5 |
+| Valuation | 35% | DCF margin of safety, PE, PS, PEG |
+| Financials | 20% | ROE, margins, FCF, growth |
+| Health | 20% | Current ratio, D/E |
+| Technical | 12% | RSI, SMA50/200, 52wk position (fallback: beta proxies when no price history) |
+| Macro | 7% | VIX, S&P 500, USD/JPY |
+| News | 6% | Keyword sentiment scoring |
 
 ### Score → Recommendation
 
@@ -391,26 +400,18 @@ interface Verdict {
 - [ ] **Planned:** Consider adding crude oil price and geo-political risk as explicit scoring factors in the future (currently only USD/JPY is scored; oil and geo-politics are displayed but not scored)
 
 ### Phase 5 — Quality & CI
-- [ ] Full test coverage (85%+ critical modules)
-- [ ] CI pipeline (lint + test on every PR)
+- [x] Full test coverage (85%+ critical modules) — **247 tests, 85.4% branch / 95.6% statement / 100% function** (2026-08-02)
+- [x] `vitest.config.ts` → `vitest.config.mts` + `import.meta.dirname` — ESM warnings eliminated
+- [x] New test files: `lynchCategory.test.ts`, `industries.test.ts`; branch coverage on all scoring engines raised above 80%
+- [ ] CI pipeline (lint + typecheck + test on every PR) — **NEXT UP: add `.github/workflows/ci.yml`**
 
-### Phase 6 — AI Narrative Layer
-- [ ] Integrate a large-language model (LLM) to generate natural-language verdict narratives
-- [ ] Pass scored data (scores, reasons, investor lens results) to the LLM as structured context
-- [ ] LLM outputs a 2–4 sentence plain-English summary explaining *why* the verdict is BUY/WAIT/AVOID
-- [ ] Optionally: allow LLM to surface non-obvious risks or catalysts not captured by rule-based scoring
-- [ ] Display AI summary prominently in the verdict result panel
+### Phase 6 — AI Narrative Layer ✅
+- [x] `claudeService.ts` — Anthropic REST API (no SDK), Claude 3.5 Haiku, locale-aware (EN/JA/PT)
+- [x] Structured prompt passes verdict scores, financials, top news, and macro context
+- [x] `AINarrativeCard.tsx` — displays AI analysis in the verdict result panel
+- [x] Graceful fallback when `ANTHROPIC_API_KEY` is not set (component hidden, no crash)
 
-**Supported providers (any one is sufficient):**
-
-| Provider | Model | Free Tier | Env Key |
-|----------|-------|-----------|---------|
-| Anthropic | Claude 3.5 Haiku | $5 signup credit | `ANTHROPIC_API_KEY` |
-| OpenAI | GPT-4o-mini | $5 signup credit | `OPENAI_API_KEY` |
-| Google | Gemini 1.5 Flash | Generous free tier | `GOOGLE_API_KEY` |
-| Ollama (local) | Llama 3 / Mistral | Free (runs locally) | No key needed |
-
-> **Note:** GitHub Copilot is an IDE assistant and cannot be called from the app backend at runtime. A provider with a REST API is required.
+> **To activate:** set `ANTHROPIC_API_KEY=sk-ant-...` in `.env.local`. Model: `claude-3-5-haiku-20241022`.
 
 ---
 
@@ -418,21 +419,23 @@ interface Verdict {
 
 | # | Title | Category | State |
 |---|-------|----------|-------|
-| [#2](https://github.com/yanocv/stock-verdict/issues/2) | [Frontend] Implement the main input → verdict flow | 🖥️ Frontend | Open |
-| [#3](https://github.com/yanocv/stock-verdict/issues/3) | [Technical Debt] Use real shares outstanding for per-share calculations | 🏗️ Core | Open |
-| [#4](https://github.com/yanocv/stock-verdict/issues/4) | [Code Cleanup] Remove unused import in buffettScore.ts | 🔧 Quick fix | Open |
-| [#5](https://github.com/yanocv/stock-verdict/issues/5) | Add .env.example with documented required environment variables | 🔧 Quick fix | Open |
-| [#6](https://github.com/yanocv/stock-verdict/issues/6) | [App Core] Implement financial data fetching (US & JP) | 🏗️ Core | Open |
-| [#7](https://github.com/yanocv/stock-verdict/issues/7) | [Code Cleanup] Remove unused import in buffettScore.ts | 🔧 Quick fix | Open |
-| [#8](https://github.com/yanocv/stock-verdict/issues/8) | [Technical Debt] Use real shares outstanding (DCF/Graham) | 🏗️ Core | Open |
+| [#2](https://github.com/yanocv/stock-verdict/issues/2) | [Frontend] Implement the main input → verdict flow | 🖥️ Frontend | ✅ Closed |
+| [#3](https://github.com/yanocv/stock-verdict/issues/3) | [Technical Debt] Use real shares outstanding for per-share calculations | 🏗️ Core | ✅ Closed |
+| [#4](https://github.com/yanocv/stock-verdict/issues/4) | [Code Cleanup] Remove unused import in buffettScore.ts | 🔧 Quick fix | ✅ Closed |
+| [#5](https://github.com/yanocv/stock-verdict/issues/5) | Add .env.example with documented required environment variables | 🔧 Quick fix | ✅ Closed |
+| [#6](https://github.com/yanocv/stock-verdict/issues/6) | [App Core] Implement financial data fetching (US & JP) | 🏗️ Core | ✅ Closed |
+| [#7](https://github.com/yanocv/stock-verdict/issues/7) | [Code Cleanup] Remove unused import in buffettScore.ts | 🔧 Quick fix | ✅ Closed |
+| [#8](https://github.com/yanocv/stock-verdict/issues/8) | [Technical Debt] Use real shares outstanding (DCF/Graham) | 🏗️ Core | ✅ Closed |
 
-### Pending Draft Issues (not yet created)
+### Open Issues
 
-| Title | Category |
-|-------|----------|
-| Dynamic HTML `lang` attribute from user locale | 🔧 Quick fix |
-| [Feature] Add news impact and macro scoring | 🌍 Intelligence |
-| [Feature] Calendar awareness: dividend and earnings release | 🌍 Intelligence |
+| Title | Category | Priority |
+|-------|----------|----------|
+| Add GitHub Actions CI pipeline (lint + typecheck + test on PR) | 🏗️ DevOps | 🔴 Next |
+| Analyst consensus + bull/bear price targets | 🌍 Intelligence | 🟡 Phase 2 |
+| RSI 14-day signals wired into technical score | 🌍 Intelligence | 🟡 Phase 2 |
+| DCF sensitivity table (WACC ±2%, growth ±2%) | 🏗️ Core | 🟡 Phase 2 |
+| Margin Risk module data integration (FINRA/KRX/JPX) | 🌍 Intelligence | 🟡 Phase 2 |
 
 ---
 
@@ -586,6 +589,13 @@ npm run dev                  # http://localhost:3000
 | Portfolio risk (VaR, Sharpe, correlation) | Module 3 | v2 |
 | Portfolio builder (risk profile → DCA plan) | Module 4 | v2 |
 | Context-aware position verdict (HOLD/ADD/REDUCE/EXIT) | — | v2 |
+
+### Future — Nikkei Screener & Watchlist Scan
+
+| Item | Notes | Priority |
+|------|-------|----------|
+| Nikkei-30 screener — scan curated list, return BUY results | `/api/screener` route + `ScreenerResultsTable.tsx` + `screener/page.tsx` | v2 |
+| Watchlist-based scan | Once watchlist has persistent storage (Supabase), screener defaults to user's watchlist instead of static Nikkei-30 list. Same batch runner, different ticker source. | v2 |
 
 ---
 
