@@ -8,9 +8,13 @@ import { evaluateBuffett } from '@/lib/scoring/buffettScore';
 import { evaluateGraham } from '@/lib/scoring/grahamScore';
 import { evaluateLynch } from '@/lib/scoring/lynchScore';
 import { scoreMacro } from '@/lib/scoring/macroScore';
+import { determineMacroRegime } from '@/lib/scoring/macroRegime';
+import { runJapanFilter } from '@/lib/scoring/japanFilter';
 import { getBenchmarksForSector } from '@/lib/benchmarks/industries';
 import { generateAINarrative } from '@/lib/services/claudeService';
-import type { StockVerdictResponse } from '@/types';
+import { calculateRSI, classifyRSI, calculateSMA, extractCloses } from '@/lib/formulas/rsi';
+import { runAdvancedDCF } from '@/lib/formulas/dcfAdvanced';
+import type { StockVerdictResponse, TechnicalIndicators } from '@/types';
 
 export async function GET(
   _request: NextRequest,
@@ -38,16 +42,19 @@ export async function GET(
       fetchPriceHistory(normalizedTicker),
     ]);
 
-    const { overview, financials, balanceSheet, incomeStatement, calendarData } = stockData;
+    const { overview, financials, balanceSheet, incomeStatement, calendarData, analystConsensus } = stockData;
 
     // 2. Score macro and news
     const macroScore = scoreMacro(macroData);
     const newsScore = scoreNews(news);
 
-    // 3. Get industry benchmarks for the sector
+    // 3. Macro regime gate (per investment philosophy)
+    const macroRegime = determineMacroRegime(macroData);
+
+    // 4. Get industry benchmarks for the sector
     const benchmarks = getBenchmarksForSector(overview.sector);
 
-    // 4. Run the master verdict engine with real macro and news scores
+    // 5. Run the master verdict engine with real macro and news scores
     const verdict = generateVerdict({
       financials,
       balanceSheet,
@@ -58,14 +65,14 @@ export async function GET(
       newsScore,
     });
 
-    // 5. Run individual investor lenses
+    // 6. Run individual investor lenses
     const buffett = evaluateBuffett(financials, balanceSheet);
     const graham = evaluateGraham(financials, balanceSheet, {
       currentPrice: overview.currentPrice,
     });
     const lynch = evaluateLynch(financials, balanceSheet);
 
-    // 6. Fix per-share values using real shares outstanding
+    // 7. Fix per-share values using real shares outstanding
     if (overview.sharesOutstanding > 1) {
       if (buffett.fairValue !== null) {
         buffett.fairValue = buffett.fairValue / overview.sharesOutstanding;
@@ -77,7 +84,54 @@ export async function GET(
       }
     }
 
-    // 7. Generate AI narrative (non-blocking — null if key not set or call fails)
+    // 8. Technical indicators from price history
+    const closes = extractCloses(priceHistory);
+    const rsi = calculateRSI(closes);
+    const rsiSignal = rsi !== null ? classifyRSI(rsi) : null;
+    const sma50 = calculateSMA(closes, 50);
+    const sma200 = calculateSMA(closes, 200);
+    const currentPrice = overview.currentPrice;
+
+    const rangeHigh = overview.fiftyTwoWeekHigh;
+    const rangeLow = overview.fiftyTwoWeekLow;
+    const fiftyTwoWeekPosition =
+      rangeHigh > rangeLow
+        ? Math.round(((currentPrice - rangeLow) / (rangeHigh - rangeLow)) * 100)
+        : null;
+
+    const technicalIndicators: TechnicalIndicators = {
+      rsi,
+      rsiSignal,
+      fiftyTwoWeekPosition,
+      sma50,
+      sma200,
+      trendVsSma50: sma50 !== null ? (currentPrice > sma50 ? 'above' : 'below') : null,
+      trendVsSma200: sma200 !== null ? (currentPrice > sma200 ? 'above' : 'below') : null,
+    };
+
+    // 9. Advanced DCF with WACC + sensitivity table
+    const netDebt = balanceSheet.totalDebt - balanceSheet.cash;
+    const fcfGrowthRate = Math.min(0.20, Math.max(-0.05, (financials.epsGrowth ?? 5) / 100));
+
+    const dcfAnalysis = runAdvancedDCF({
+      freeCashFlow: financials.freeCashFlow ?? 0,
+      sharesOutstanding: overview.sharesOutstanding,
+      netDebt,
+      beta: financials.beta ?? 1.0,
+      growthRate: fcfGrowthRate,
+      riskFreeRate: null, // will use DEFAULT_RISK_FREE_RATE (4.5%)
+      currentPrice: overview.currentPrice,
+    });
+
+    // 10. Japan 6-gate TOPIX filter
+    const japanFilter = runJapanFilter(
+      normalizedTicker,
+      financials,
+      { cash: balanceSheet.cash, totalDebt: balanceSheet.totalDebt },
+      overview.sector
+    );
+
+    // 11. Generate AI narrative (non-blocking — null if key not set or call fails)
     const locale = _request.headers.get('x-locale') ?? 'en';
     const aiNarrative = await generateAINarrative({
       overview,
@@ -101,10 +155,15 @@ export async function GET(
       },
       news,
       macroData,
+      macroRegime,
       calendarData,
       financialHistory,
       priceHistory,
       aiNarrative,
+      analystConsensus,
+      technicalIndicators,
+      dcfAnalysis,
+      japanFilter,
     };
 
     return NextResponse.json(response);

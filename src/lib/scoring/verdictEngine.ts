@@ -17,20 +17,38 @@ export interface VerdictEngineParams {
   sector?: string;
   macroScore?: number;  // 0–10, defaults to 5 (neutral) when not provided
   newsScore?: number;   // 0–10, defaults to 5 (neutral) when not provided
+  /**
+   * DCF fair value per share (pre-calculated with real sharesOutstanding).
+   * When provided, the margin of safety is incorporated into the valuation score.
+   * This is the primary fix for the "WAIT despite trading 50% below fair value" bug.
+   */
+  dcfFairValuePerShare?: number | null;
 }
 
 /**
- * Weighted scoring system:
- * - Financials: 30%
- * - Valuation: 20%
- * - Health: 20%
- * - Technical: 15%
- * - Macro: 15% (defaults to 5 when no macro input provided)
+ * GARP-aligned weighted scoring (Mode 1 — Value Hunter):
+ * - Valuation:  35%  ← highest priority for value investors
+ * - Financials: 20%  ← quality check
+ * - Health:     20%  ← survival check
+ * - Technical:  12%
+ * - Macro/News: 13%
  *
- * Score > 7 = BUY, 4-7 = WAIT, < 4 = AVOID
+ * Score > 7 = BUY, 4–7 = WAIT, < 4 = AVOID
+ *
+ * Key fix: when dcfFairValuePerShare is provided, the margin of safety
+ * is incorporated directly into the valuation score. A stock trading
+ * 50%+ below its DCF fair value receives a major valuation boost.
  */
 export function generateVerdict(params: VerdictEngineParams): Verdict {
-  const { financials, price, industryBenchmarks, sector = '', macroScore: macroScoreInput, newsScore: newsScoreInput } = params;
+  const {
+    financials,
+    price,
+    industryBenchmarks,
+    sector = '',
+    macroScore: macroScoreInput,
+    newsScore: newsScoreInput,
+    dcfFairValuePerShare,
+  } = params;
 
   // --- Financials Score (0-10) ---
   let financialsScore = 5; // start neutral
@@ -68,6 +86,19 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   if (peg !== Infinity && peg < 1) valuationScore += 1.5;
   else if (peg !== Infinity && peg > 2) valuationScore -= 1;
 
+  // --- DCF Margin of Safety (most important valuation signal) ---
+  // If a real per-share fair value is available, incorporate the MoS.
+  // This is the primary driver for catching stocks trading far below intrinsic value.
+  let mosPercent: number | null = null;
+  if (dcfFairValuePerShare !== null && dcfFairValuePerShare !== undefined && dcfFairValuePerShare > 0 && price > 0) {
+    mosPercent = (dcfFairValuePerShare - price) / dcfFairValuePerShare;
+    if (mosPercent > 0.40) valuationScore += 4;       // >40% below fair value — massive undervaluation
+    else if (mosPercent > 0.25) valuationScore += 2.5; // >25% below fair value — significant discount
+    else if (mosPercent > 0.10) valuationScore += 1;   // >10% below fair value — moderate discount
+    else if (mosPercent < -0.30) valuationScore -= 3;  // >30% above fair value — materially overvalued
+    else if (mosPercent < -0.10) valuationScore -= 1;  // >10% above fair value — moderately overvalued
+  }
+
   valuationScore = Math.max(0, Math.min(10, valuationScore));
 
   // --- Health Score (0-10) ---
@@ -85,8 +116,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
 
   healthScore = Math.max(0, Math.min(10, healthScore));
 
-  // --- Technical Score (0-10) — placeholder based on available data ---
-  // Without OHLCV data we use beta and EPS growth as proxies
+  // --- Technical Score (0-10) — proxy based on available data ---
   let technicalScore = 5;
   const beta = financials.beta ?? 1;
   const epsGrowth = financials.epsGrowth ?? 0;
@@ -104,17 +134,18 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
 
   technicalScore = Math.max(0, Math.min(10, technicalScore));
 
-  // --- Macro Score (0-10) — use real score if provided ---
+  // --- Macro Score (0-10) ---
   const macroScore = macroScoreInput ?? 5;
   const newsScore = newsScoreInput ?? 5;
 
   // --- Weighted Overall Score ---
+  // GARP Mode 1 (Value Hunter): valuation is the highest priority
   const overall =
-    financialsScore * 0.30 +
-    valuationScore * 0.20 +
-    healthScore * 0.20 +
-    technicalScore * 0.15 +
-    macroScore * 0.15;
+    financialsScore * 0.20 +
+    valuationScore  * 0.35 +
+    healthScore     * 0.20 +
+    technicalScore  * 0.12 +
+    macroScore      * 0.13;
 
   const scores: VerdictScore = {
     overall: Math.round(overall * 10) / 10,
@@ -135,7 +166,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   const minDistance = Math.min(distanceFromWait, distanceFromBuy);
   const confidence = Math.round(Math.min(50 + minDistance * 15, 95));
 
-  // Fair value via DCF
+  // Fair value via DCF (used for display — sharesOutstanding=1, corrected in route)
   const DEFAULT_EPS_GROWTH_RATE = 5;
   const MIN_DCF_GROWTH_RATE = 0.02;
   const MAX_DCF_GROWTH_RATE = 0.15;
@@ -155,7 +186,9 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     });
   }
 
-  const suggestedBuyPrice = fairValue !== null ? fairValue * 0.75 : price * 0.85;
+  // Prefer the more accurate advanced DCF fair value when available
+  const displayFairValue = dcfFairValuePerShare ?? fairValue;
+  const suggestedBuyPrice = displayFairValue !== null ? displayFairValue * 0.75 : price * 0.85;
 
   // Reasons
   const bullish: string[] = [];
@@ -166,6 +199,22 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   if (peg !== Infinity && peg < 1) bullish.push(`PEG ratio of ${peg.toFixed(2)} indicates undervaluation`);
   if (cr > 2) bullish.push(`Strong liquidity with current ratio of ${cr.toFixed(2)}`);
   if (epsGrowth > 10) bullish.push(`EPS growing at ${epsGrowth.toFixed(1)}%`);
+
+  // DCF margin of safety reasons
+  if (mosPercent !== null) {
+    if (mosPercent > 0.40) {
+      bullish.push(`Significant undervaluation: trading ${(mosPercent * 100).toFixed(0)}% below DCF fair value`);
+    } else if (mosPercent > 0.20) {
+      bullish.push(`Trading ${(mosPercent * 100).toFixed(0)}% below DCF fair value — meaningful margin of safety`);
+    } else if (mosPercent < -0.20) {
+      bearish.push(`Appears ${(Math.abs(mosPercent) * 100).toFixed(0)}% above DCF fair value — potential overvaluation`);
+    }
+  }
+
+  // Price vs suggested buy price
+  if (displayFairValue !== null && price < displayFairValue * 0.75) {
+    bullish.push('Current price already below our suggested entry level');
+  }
 
   if (fcf <= 0) bearish.push('Negative or zero free cash flow');
   if (de !== Infinity && de > industryBenchmarks.debtToEquity.high) bearish.push(`High debt/equity ratio of ${de.toFixed(2)}`);
@@ -184,7 +233,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     recommendation,
     confidence,
     scores,
-    fairValue,
+    fairValue: displayFairValue,
     suggestedBuyPrice,
     reasons: { bullish, bearish },
     lynchCategory,

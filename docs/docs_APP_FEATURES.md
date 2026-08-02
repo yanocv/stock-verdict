@@ -23,19 +23,20 @@
 11. [Charts & Visualizations](#-charts--visualizations)
 12. [News & Sentiment Analysis](#-news--sentiment-analysis)
 13. [Macro & Geopolitical Awareness](#-macro--geopolitical-awareness)
-14. [Calendar Awareness (Dividends, Earnings)](#-calendar-awareness-dividends-earnings)
-15. [Context-Aware Position Verdict (v2)](#-context-aware-position-verdict-v2)
-16. [AI Market Scanner — Stock Discovery (v2)](#-ai-market-scanner--stock-discovery-v2)
-17. [Stock Screener (v2)](#-stock-screener-v2)
-18. [Competitor Price Overlay](#-competitor-price-overlay)
-19. [ESG Score](#-esg-score-)
-20. [Buyback Tracker](#-buyback-tracker-)
-21. [Analyst Consensus](#-analyst-consensus-)
-22. [Internationalization (i18n)](#-internationalization-i18n)
-23. [Mobile App (React Native — v2)](#-mobile-app-react-native--v2)
-24. [Infrastructure & Deployment](#-infrastructure--deployment)
-25. [Full Feature Matrix](#-full-feature-matrix)
-26. [Master Parameter Reference (Modules 1–5)](#-master-parameter-reference-modules-15)
+14. [Margin Risk Module](#-margin-risk-module)
+15. [Calendar Awareness (Dividends, Earnings)](#-calendar-awareness-dividends-earnings)
+16. [Context-Aware Position Verdict (v2)](#-context-aware-position-verdict-v2)
+17. [AI Market Scanner — Stock Discovery (v2)](#-ai-market-scanner--stock-discovery-v2)
+18. [Stock Screener (v2)](#-stock-screener-v2)
+19. [Competitor Price Overlay](#-competitor-price-overlay)
+20. [ESG Score](#-esg-score-)
+21. [Buyback Tracker](#-buyback-tracker-)
+22. [Analyst Consensus](#-analyst-consensus-)
+23. [Internationalization (i18n)](#-internationalization-i18n)
+24. [Mobile App (React Native — v2)](#-mobile-app-react-native--v2)
+25. [Infrastructure & Deployment](#-infrastructure--deployment)
+26. [Full Feature Matrix](#-full-feature-matrix)
+27. [Master Parameter Reference (Modules 1–6)](#-master-parameter-reference-modules-16)
 
 ---
 
@@ -614,6 +615,58 @@ The system detects and scores impact from:
 - Negative macro events → **confidence knockdown** (e.g., -10% confidence)
 - Sector-specific events → **targeted warnings** (e.g., "Auto sector impacted by supply chain disruption")
 - Currency moves → **FX impact flag** for Japanese exporters
+
+---
+
+## ⚠️ Margin Risk Module
+
+> **Motivation:** The KOSPI Black Monday cascade of June–July 2026 — a real-world example of what our app's macro layer must detect and flag before it happens.
+
+### What It Detects
+
+Margin trading amplifies both gains and losses. When margin loan balances grow faster than the underlying index, the market is fragile: any catalyst can trigger a forced liquidation cascade where broker algorithms sell en masse, depressing prices, triggering more margin calls, forcing more selling. This mechanical feedback loop can evaporate hundreds of billions in market value in days.
+
+**The KOSPI case study (June–July 2026):**
+- KOSPI doubled in H1 2026 on Samsung/SK Hynix-led semiconductor rally
+- Margin loan balances hit an all-time record: ₩60 trillion won
+- Trigger: BoK rate hike (2.5% → 2.75%) + China self-developed lithography news + SK Hynix earnings miss
+- Forced liquidation ratio surged from 2.1% → 10.2% in days
+- 1.2 million accounts hit margin calls; ~360,000 forcibly liquidated by brokers
+- Circuit breakers fired on two consecutive days
+- ₩864.5 trillion (~$608.7B) evaporated in two sessions
+
+### Signals Tracked
+
+| Signal | Warning threshold | Data source |
+|--------|-------------------|-------------|
+| Market-wide margin loan balance | Growing faster than underlying index | FINRA (US), KRX (KR), JPX (JP) |
+| Margin loan 90-day growth rate | > 20% in 90 days | Exchange margin stats |
+| Forced liquidation ratio | > 3% = warning · > 7% = critical | Exchange daily margin data |
+| Leveraged ETF volume share | > 15% of daily volume | Exchange volume feeds |
+| Single stock margin concentration | > 20% of total market margin debt | Exchange margin by issue |
+| Individual stock margin vs free float | > 5% of free float | Exchange margin by issue |
+| Central bank rate direction | First hike in a tightening cycle | Central bank policy announcements |
+| Circuit breaker frequency | > 5/year = systemic stress | Exchange circuit breaker logs |
+
+### How It Affects Verdicts
+
+| Condition | Verdict override |
+|-----------|------------------|
+| Forced liquidation ratio 3–7% | All BUY → WAIT |
+| Forced liquidation ratio > 7% | All BUY and WAIT → AVOID |
+| Market margin loans +20% in 90d + hiking cycle | Confidence knockdown −20% on all verdicts |
+| Individual stock margin > 5% of free float | ⚠️ "Margin concentration risk" warning on stock card |
+
+### UI Display
+
+- **Market health banner** — shown at the top of the verdict page when any market-level threshold is breached
+- **Stock-level badge** — "High margin concentration" shown on stocks where margin > 5% of free float
+- **Macro panel** — daily forced liquidation ratio shown alongside VIX and S&P 500
+- **Explanation** — plain-language note: "Elevated forced selling in the market may create short-term downward pressure unrelated to company fundamentals"
+
+### Status
+
+`[PLANNED]` — Data sources identified. Requires exchange margin data integration (FINRA for US, KRX for Korea, JPX for Japan). US data has 1–2 day lag; KR and JP data available same-day from exchange feeds. See `docs_MASTER_PARAMETERS.md` Module 6 for the full scoring formula.
 
 ---
 

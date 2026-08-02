@@ -234,6 +234,69 @@ flowchart TD
 
 ---
 
+## Module 6 — Margin Risk
+*Motivation: KOSPI Black Monday (June–July 2026)*
+*Goal: Detect when leveraged retail debt has built up to a level where a cascade liquidation is possible. This is a systemic risk signal that sits above individual stock analysis — it affects the macro environment score and should suppress BUY verdicts when triggered.*
+
+### What happened — the KOSPI margin cascade (June–July 2026)
+
+The KOSPI doubled in H1 2026, driven almost entirely by Samsung Electronics and SK Hynix (together ~50% of KOSPI market cap). That rally sucked in enormous retail leverage. In May 2026, margin loan balances surpassed 60 trillion won — an all-time record — and 2× leveraged ETF products sold out immediately upon listing.
+
+The trigger: the Bank of Korea raised its policy rate by 25bps on July 16 (first hike in three years, 2.5% → 2.75%). On July 28, reports emerged that China had begun mass-producing self-developed deep ultraviolet lithography machines, dealing a severe blow to Korea's semiconductor outlook. The next day, SK Hynix reported record earnings that fell short of lofty expectations — panic selling began.
+
+Margin loan balances had peaked at ₩38.63 trillion on June 24 then fell to ₩34.37 trillion by July 15 — not a managed deleveraging but a forced one. Over 1.2 million leveraged accounts hit margin call thresholds; approximately 360,000 were forcibly liquidated by brokers. The forced liquidation ratio surged from 2.1% (6-month average) to above 10%. Each liquidation put pressure on prices → more margin calls → more forced selling → more pressure. Circuit breakers fired on two consecutive days. Total market value erased: approximately ₩864.5 trillion (~$608.7 billion) over two sessions.
+
+### Parameters
+
+| Parameter | Status | Warning threshold | What KOSPI showed |
+|---|---|---|---|
+| Market-wide margin loan balance | `[NEEDS-LIVE-DATA]` | Growing faster than underlying index | ₩60T won before crash |
+| Margin loan 90-day growth rate | `[NEEDS-LIVE-DATA]` | Above 20% in 90 days = danger | Surged 30%+ in under 3 months |
+| Forced liquidation ratio | `[NEEDS-LIVE-DATA]` | Above 3% of outstanding = systemic warning | Spiked from 2.1% → 10.2% in days |
+| Leveraged ETF share of daily volume | `[NEEDS-LIVE-DATA]` | Above 15% of daily volume = distortion risk | Single-stock leveraged ETFs dominated |
+| Margin concentration in top stocks | `[NEEDS-LIVE-DATA]` | Top 4 stocks > 50% of total margin debt | Samsung + SK Hynix were the locus |
+| Individual stock margin debt vs free float | `[NEEDS-LIVE-DATA]` | Flag if margin debt > 5% of free float | Both dominated stocks exceeded this |
+| Rate environment change | `[CORE]` | First central bank hike in a hiking cycle | BoK hike 2.5% → 2.75% was the pin |
+| Circuit breaker frequency | `[NEEDS-LIVE-DATA]` | More than 5/year = systemic stress | 35 sell-side sidecars + 7 circuit breakers by late June — exceeding 2008's full-year record |
+
+### Ideal numbers to surface to users
+
+- **Stock-level:** Flag any stock where margin debt exceeds **5% of its free float**
+- **Market-level:** Flag the market if total margin loans grew more than **20% in 90 days**
+- **Daily signal:** Show the forced liquidation ratio — above **3%** is a systemic warning; above **7%** is critical
+- **Concentration flag:** If a single stock represents more than **20% of total market margin debt**, label it "margin concentration risk"
+- **Verdict suppression:** When market-wide forced liquidation ratio is above 3% AND rate environment is tightening, downgrade all BUY verdicts to WAIT until the ratio normalizes
+
+### How this integrates into the verdict engine
+
+```
+Margin Risk Score (0–10):
+  Base: 5 (neutral)
+  + 3 if forced liquidation ratio < 2% AND margin growth < 10%/90d  → benign
+  - 2 if forced liquidation ratio 3–7%                               → elevated
+  - 4 if forced liquidation ratio > 7%                               → critical
+  - 2 if total margin loans grew > 20% in 90 days                   → frothy
+  - 1 if central bank is in active hiking cycle                      → rate risk
+  - 1 if leveraged ETF volume > 15% of daily market volume           → speculation
+  min: 0, max: 10
+
+When Margin Risk Score < 3: suppress all BUY verdicts → force to WAIT
+When Margin Risk Score < 2: suppress all BUY and WAIT verdicts → force to AVOID
+```
+
+### Data sources for this module
+
+| Data point | Source |
+|---|---|
+| KOSPI/TSE/NYSE margin loan balances | KRX (Korea), JPX (Japan), FINRA (US — monthly margin stats) |
+| Forced liquidation ratio | KRX daily margin statistics; equivalent from TSE for Japan |
+| Leveraged ETF volume data | Exchange daily volume feeds |
+| Individual stock margin debt | FINRA Reg T data (US); KRX margin balance by issue (KR); TSE margin trading data (JP) |
+
+> **Note:** Market-wide margin data is typically available with a 1–2 day lag for US (FINRA), same-day for KR and JP exchanges. This module affects the macro score layer, not the individual stock scoring layer.
+
+---
+
 ## Data Sources — Recommended APIs
 
 | Data type | Recommended source |
@@ -250,6 +313,7 @@ flowchart TD
 
 ## Agent Instructions
 
+- **Treat margin cascade risk as a macro override.** When the forced liquidation ratio exceeds 3%, it is not a stock-specific signal — it suppresses the entire market's BUY verdicts. Individual company quality is irrelevant if a margin cascade is in progress.
 - **Always present ranges, not point estimates.** Return ranges are uncertain — show scenarios.
 - **Never fabricate data.** If a data point is unavailable from the API, say so explicitly.
 - **Collect user profile before Module 4.** Portfolio builder output is invalid without age, horizon, and risk tolerance.

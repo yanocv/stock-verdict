@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import YahooFinance from 'yahoo-finance2';
-import type { StockOverview, FinancialMetrics, BalanceSheet, IncomeStatement, CalendarData } from '@/types';
+import type { StockOverview, FinancialMetrics, BalanceSheet, IncomeStatement, CalendarData, AnalystConsensus } from '@/types';
 import { classifyCapSize } from '@/lib/classifiers/capSize';
 
 export const yf = new YahooFinance({ suppressNotices: ['yahooSurvey'] });
@@ -15,6 +15,7 @@ export interface YahooStockData {
   balanceSheet: BalanceSheet;
   incomeStatement: IncomeStatement;
   calendarData: CalendarData;
+  analystConsensus: AnalystConsensus;
 }
 
 /** Safely extract a number from a Yahoo Finance field that may be a number or undefined. */
@@ -49,6 +50,7 @@ export async function fetchStockData(ticker: string): Promise<YahooStockData> {
       'incomeStatementHistory' as const,
       'assetProfile' as const,
       'calendarEvents' as const,
+      'recommendationTrend' as const,
     ],
   });
 
@@ -217,5 +219,35 @@ export async function fetchStockData(ticker: string): Promise<YahooStockData> {
     revenueAverage: typeof cal.earnings?.revenueAverage === 'number' ? cal.earnings.revenueAverage : null,
   };
 
-  return { overview, financials, balanceSheet, incomeStatement, calendarData };
+  // Build AnalystConsensus
+  const recTrend = result.recommendationTrend?.trend ?? [];
+  // Most recent trend period (period '0m' = current month)
+  const currentTrend: any = recTrend.find((t: any) => t.period === '0m') ?? recTrend[0] ?? {};
+
+  const targetMeanPrice = numOrNull(finData.targetMeanPrice);
+  const targetHighPrice = numOrNull(finData.targetHighPrice);
+  const targetLowPrice = numOrNull(finData.targetLowPrice);
+  const targetMedianPrice = numOrNull(finData.targetMedianPrice);
+
+  const upsideToTarget =
+    targetMeanPrice !== null && currentPrice > 0
+      ? Math.round(((targetMeanPrice - currentPrice) / currentPrice) * 100 * 10) / 10
+      : null;
+
+  const analystConsensus: AnalystConsensus = {
+    targetMeanPrice,
+    targetHighPrice,
+    targetLowPrice,
+    targetMedianPrice,
+    numberOfAnalysts: numOrNull(finData.numberOfAnalystOpinions),
+    recommendationKey: typeof finData.recommendationKey === 'string' ? finData.recommendationKey : null,
+    upsideToTarget,
+    strongBuy: typeof currentTrend.strongBuy === 'number' ? currentTrend.strongBuy : 0,
+    buy: typeof currentTrend.buy === 'number' ? currentTrend.buy : 0,
+    hold: typeof currentTrend.hold === 'number' ? currentTrend.hold : 0,
+    sell: typeof currentTrend.sell === 'number' ? currentTrend.sell : 0,
+    strongSell: typeof currentTrend.strongSell === 'number' ? currentTrend.strongSell : 0,
+  };
+
+  return { overview, financials, balanceSheet, incomeStatement, calendarData, analystConsensus };
 }

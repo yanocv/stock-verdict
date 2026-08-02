@@ -14,3 +14,7 @@ export type { NewsArticle } from './news';
 export type { CalendarData } from './calendar';
 export type { FinancialPeriod, FinancialHistory, ChartDataPoint } from './financialHistory';
 export type { StockVerdictResponse } from './api';
+export type { AnalystConsensus } from './analyst';
+export type { TechnicalIndicators } from './technicals';
+export type { DCFAnalysis, SensitivityCell } from './dcfAnalysis';
+export type { GateStatus, GateResult, JapanFilterOverall, JapanFilterResult } from './japanFilter';

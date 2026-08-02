@@ -543,6 +543,18 @@ npm run dev                  # http://localhost:3000
 
 ## 🗺 Phase Status (as of 2026-06-27)
 
+### Phase 2 — ✅ COMPLETE (209 tests, TypeScript clean)
+
+| Item | File(s) | Status |
+|------|---------|--------|
+| Analyst consensus (bull/bear targets, rating distribution) | `yahooFinance.ts` + `types/analyst.ts` | ✅ |
+| RSI 14-day + SMA 50/200 + 52wk position | `formulas/rsi.ts` + `types/technicals.ts` | ✅ |
+| Full DCF — WACC from beta + 10Y treasury, 5×5 sensitivity table | `formulas/dcfAdvanced.ts` + `types/dcfAnalysis.ts` | ✅ |
+| Japan 6-gate TOPIX filter (hard/soft fail + judgment rules) | `scoring/japanFilter.ts` + `types/japanFilter.ts` | ✅ |
+| Macro regime gate (risk-on / neutral / risk-off + MoS bonus) | `scoring/macroRegime.ts` | ✅ |
+| All wired into `/api/stock/[ticker]` response | `app/api/stock/[ticker]/route.ts` | ✅ |
+| `StockVerdictResponse` updated with all new fields | `types/api.ts` | ✅ |
+
 ### Phase 1 — ✅ COMPLETE (150 tests, TypeScript clean)
 
 | Item | Component / File | Status |
