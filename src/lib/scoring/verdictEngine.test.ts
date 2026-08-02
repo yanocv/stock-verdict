@@ -123,6 +123,108 @@ describe('generateVerdict', () => {
     expect(Array.isArray(result.reasons.bearish)).toBe(true);
   });
 
+  // --- DCF margin of safety branches (lines 94–99, 205–210) ---
+
+  it('boosts valuation score and adds bullish reason when price is >40% below DCF fair value', () => {
+    const result = generateVerdict({
+      financials: strongMetrics,
+      balanceSheet,
+      price: 50,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+      dcfFairValuePerShare: 100, // price is 50% below → mosPercent = 0.50
+    });
+    expect(result.scores.valuation).toBeGreaterThan(7);
+    expect(result.reasons.bullish.some((r) => r.includes('below DCF fair value'))).toBe(true);
+  });
+
+  it('adds moderate bullish reason when price is 20–40% below DCF fair value', () => {
+    const result = generateVerdict({
+      financials: strongMetrics,
+      balanceSheet,
+      price: 75,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+      dcfFairValuePerShare: 100, // price is 25% below → mosPercent = 0.25
+    });
+    expect(result.reasons.bullish.some((r) => r.includes('below DCF fair value'))).toBe(true);
+  });
+
+  it('adds bearish reason when price is >20% above DCF fair value', () => {
+    const result = generateVerdict({
+      financials: weakMetrics,
+      balanceSheet,
+      price: 130,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+      dcfFairValuePerShare: 100, // price is 30% above → mosPercent = -0.30
+    });
+    expect(result.reasons.bearish.some((r) => r.includes('above DCF fair value'))).toBe(true);
+  });
+
+  it('penalises valuation score when price is >30% above DCF fair value', () => {
+    const baseResult = generateVerdict({
+      financials: weakMetrics,
+      balanceSheet,
+      price: 50,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+    });
+    const overvaluedResult = generateVerdict({
+      financials: weakMetrics,
+      balanceSheet,
+      price: 50,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+      dcfFairValuePerShare: 30, // price is ~67% above → mosPercent = -0.67
+    });
+    expect(overvaluedResult.scores.valuation).toBeLessThan(baseResult.scores.valuation);
+  });
+
+  it('skips DCF margin of safety when dcfFairValuePerShare is null', () => {
+    const withNull = generateVerdict({
+      financials: strongMetrics,
+      balanceSheet,
+      price: 150,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+      dcfFairValuePerShare: null,
+    });
+    const withUndefined = generateVerdict({
+      financials: strongMetrics,
+      balanceSheet,
+      price: 150,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+    });
+    expect(withNull.scores.valuation).toBe(withUndefined.scores.valuation);
+  });
+
+  it('uses dcfFairValuePerShare as the displayed fair value when provided', () => {
+    const result = generateVerdict({
+      financials: strongMetrics,
+      balanceSheet,
+      price: 150,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+      dcfFairValuePerShare: 200,
+    });
+    expect(result.fairValue).toBe(200);
+    expect(result.suggestedBuyPrice).toBeCloseTo(200 * 0.75, 1);
+  });
+
+  it('uses macroScore and newsScore when provided', () => {
+    const bullishMacro = generateVerdict({
+      financials: strongMetrics,
+      balanceSheet,
+      price: 150,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+      macroScore: 9,
+      newsScore: 9,
+    });
+    const bearishMacro = generateVerdict({
+      financials: strongMetrics,
+      balanceSheet,
+      price: 150,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+      macroScore: 1,
+      newsScore: 1,
+    });
+    expect(bullishMacro.scores.overall).toBeGreaterThan(bearishMacro.scores.overall);
+  });
+
   it('provides a suggestedBuyPrice', () => {
     const result = generateVerdict({
       financials: strongMetrics,

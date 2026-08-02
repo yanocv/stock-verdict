@@ -81,4 +81,40 @@ describe('evaluateBuffett', () => {
       expect(result.buyBelow).toBeCloseTo(result.fairValue * 0.75, 0);
     }
   });
+
+  it('returns WAIT when 3–4 checks pass', () => {
+    const midMetrics: FinancialMetrics = {
+      ...strongMetrics,
+      roe: 12,            // fails ROE > 15%
+      debtToEquity: 0.8,  // fails D/E < 0.5
+      operatingMargin: 10, // fails operating margin > 15%
+    };
+    const result = evaluateBuffett(midMetrics, balanceSheet);
+    expect(result.recommendation).toBe('WAIT');
+  });
+
+  it('shows N/A for D/E value when debtToEquity is null', () => {
+    const nullDeMetrics: FinancialMetrics = { ...strongMetrics, debtToEquity: null };
+    const result = evaluateBuffett(nullDeMetrics, balanceSheet);
+    const deCheck = result.checks.find((c) => c.label === 'Debt/Equity < 0.5');
+    expect(deCheck?.value).toBe('N/A');
+  });
+
+  it('returns null fairValue when freeCashFlow is zero or negative', () => {
+    const noFcfMetrics: FinancialMetrics = { ...strongMetrics, freeCashFlow: 0 };
+    const result = evaluateBuffett(noFcfMetrics, balanceSheet);
+    expect(result.fairValue).toBeNull();
+    expect(result.buyBelow).toBeNull();
+  });
+
+  it('returns null fairValue when shareholderEquity is zero', () => {
+    const zeroEquitySheet: BalanceSheet = { ...balanceSheet, shareholderEquity: 0 };
+    const result = evaluateBuffett(strongMetrics, zeroEquitySheet);
+    expect(result.fairValue).toBeNull();
+  });
+
+  it('summary mentions the number of passed checks', () => {
+    const result = evaluateBuffett(strongMetrics, balanceSheet);
+    expect(result.summary).toMatch(/\d\/6/);
+  });
 });

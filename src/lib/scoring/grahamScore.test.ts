@@ -80,4 +80,48 @@ describe('evaluateGraham', () => {
     const result = evaluateGraham(grahamFriendlyMetrics, balanceSheet, { currentPrice: 60 });
     expect(result.summary).toBeTruthy();
   });
+
+  it('returns WAIT when 3–4 checks pass', () => {
+    // Fail exactly 2 checks: P/E (18 > 15) and dividends (0) → 4 pass → WAIT
+    const midMetrics: FinancialMetrics = {
+      ...grahamFriendlyMetrics,
+      peRatio: 18,      // fails P/E < 15
+      dividendYield: 0, // fails pays-dividends
+    };
+    const result = evaluateGraham(midMetrics, balanceSheet, { currentPrice: 60 });
+    expect(result.recommendation).toBe('WAIT');
+  });
+
+  it('shows N/A for value when peRatio and pbRatio are null', () => {
+    const nullMetrics: FinancialMetrics = {
+      ...grahamFriendlyMetrics,
+      peRatio: null,
+      pbRatio: null,
+    };
+    const result = evaluateGraham(nullMetrics, balanceSheet, { currentPrice: 60 });
+    const peCheck = result.checks.find((c) => c.label === 'P/E Ratio < 15');
+    const pbCheck = result.checks.find((c) => c.label === 'P/B Ratio < 1.5');
+    expect(peCheck?.value).toBe('N/A');
+    expect(pbCheck?.value).toBe('N/A');
+  });
+
+  it('returns null fairValue when shareholderEquity is zero', () => {
+    const zeroEquitySheet: BalanceSheet = { ...balanceSheet, shareholderEquity: 0 };
+    const result = evaluateGraham(grahamFriendlyMetrics, zeroEquitySheet, { currentPrice: 60 });
+    expect(result.fairValue).toBeNull();
+    expect(result.buyBelow).toBeNull();
+  });
+
+  it('returns null fairValue when eps is zero or negative', () => {
+    const noEpsMetrics: FinancialMetrics = { ...grahamFriendlyMetrics, eps: 0 };
+    const result = evaluateGraham(noEpsMetrics, balanceSheet, { currentPrice: 60 });
+    expect(result.fairValue).toBeNull();
+  });
+
+  it('P/E × P/B check shows N/A when either is Infinity', () => {
+    const nullBoth: FinancialMetrics = { ...grahamFriendlyMetrics, peRatio: null, pbRatio: null };
+    const result = evaluateGraham(nullBoth, balanceSheet, { currentPrice: 60 });
+    const combinedCheck = result.checks.find((c) => c.label === 'P/E × P/B < 22.5');
+    expect(combinedCheck?.value).toBe('N/A');
+  });
 });

@@ -80,4 +80,48 @@ describe('evaluateLynch', () => {
     // EPS=3, growth=28 → 3×28=84
     expect(result.fairValue).toBeCloseTo(84);
   });
+
+  it('returns WAIT when exactly 2–3 checks pass', () => {
+    const waitMetrics: FinancialMetrics = {
+      ...fastGrowerMetrics,
+      pegRatio: 2.5,        // fails PEG < 1.0
+      debtToEquity: 0.5,    // fails D/E < 0.33
+      freeCashFlow: -5_000, // fails positive FCF
+    };
+    const result = evaluateLynch(waitMetrics, balanceSheet);
+    expect(result.recommendation).toBe('WAIT');
+  });
+
+  it('returns null fairValue when eps is zero', () => {
+    const noEpsMetrics: FinancialMetrics = { ...fastGrowerMetrics, eps: 0 };
+    const result = evaluateLynch(noEpsMetrics, balanceSheet);
+    expect(result.fairValue).toBeNull();
+  });
+
+  it('returns null fairValue when epsGrowth is zero', () => {
+    const noGrowthMetrics: FinancialMetrics = { ...fastGrowerMetrics, epsGrowth: 0 };
+    const result = evaluateLynch(noGrowthMetrics, balanceSheet);
+    expect(result.fairValue).toBeNull();
+  });
+
+  it('shows N/A for PEG value when pegRatio is null', () => {
+    const nullPegMetrics: FinancialMetrics = { ...fastGrowerMetrics, pegRatio: null };
+    const result = evaluateLynch(nullPegMetrics, balanceSheet);
+    const pegCheck = result.checks.find((c) => c.label === 'PEG Ratio < 1.0');
+    expect(pegCheck?.value).toBe('N/A');
+  });
+
+  it('shows N/A for D/E value when debtToEquity is null', () => {
+    const nullDeMetrics: FinancialMetrics = { ...fastGrowerMetrics, debtToEquity: null };
+    const result = evaluateLynch(nullDeMetrics, balanceSheet);
+    const deCheck = result.checks.find((c) => c.label === 'Debt/Equity < 0.33');
+    expect(deCheck?.value).toBe('N/A');
+  });
+
+  it('shows N/A for P/E value when peRatio is null', () => {
+    const nullPeMetrics: FinancialMetrics = { ...fastGrowerMetrics, peRatio: null };
+    const result = evaluateLynch(nullPeMetrics, balanceSheet);
+    const peCheck = result.checks.find((c) => c.label === 'P/E below EPS growth rate');
+    expect(peCheck?.value).toBe('N/A');
+  });
 });
