@@ -1,6 +1,6 @@
 # KabuCheck Verdict Engine — Spec (DRAFT, awaiting owner approval)
 
-> Status: **draft v0.1, 2026-10-25.** Proposes the layer structure and gate order. Nothing here is built yet except what §1 describes as current.
+> Status: **draft v0.2, 2026-10-25.** Owner decisions recorded in §8; one question still open. Nothing here is built yet except what §1 describes as current.
 > Once approved, this file and `src/lib/scoring/params.ts` become the single source of truth for weights and thresholds. Older parameter sections in `docs_MASTER_PARAMETERS.md` and `docs_INVESTMENT_PHILOSOPHY.md` will point here.
 
 Every number in this document is a first guess (`assumed`) until the backtest harness validates it. The goal of this draft is to get the **structure** right, not the numbers.
@@ -86,8 +86,9 @@ Each step can only **lower** the verdict proposed by the step before. Every appl
 | # | Gate | Rule (first guess) | Result if triggered |
 |---|---|---|---|
 | 0 | Data sufficiency | Missing FCF, or ≥ 3 of {P/E, ROE, D/E, current ratio, revenue growth} | Confidence capped at 50%; verdict at most WAIT ("not enough data") |
-| 1 | Hard disqualifiers | Japan filter `REJECT`; or FCF < 0 **and** D/E above sector "high" | **AVOID** |
-| 2 | Quality gate | Quality < `quality.min` (mode-specific) | At most **WAIT** (Mode 1) / **AVOID** (Mode 2) |
+| 1 | Hard disqualifiers | Japan hard fail on a business gate (3 D/E, 4 ROE, 5 shareholder return, 6 revenue growth); or FCF < 0 **and** D/E above sector "high" | **AVOID** |
+| 1b | Japan valuation hard fail | Japan hard fail on gate 1 (P/E > 2× sector ceiling) or gate 2 (PEG > 3) | At most **WAIT** (price can fall) |
+| 2 | Quality gate | Quality < `quality.min` (mode-specific; higher floor in Mode 2) | At most **WAIT** (both modes) |
 | 3 | Value decision | BUY needs Value ≥ `value.buyMin` **and** margin of safety ≥ `mos.base + regime bonus` | Otherwise WAIT; Value < `value.avoidMax` → AVOID |
 | 4 | Market caps | marginRisk < 3 → at most WAIT; < 2 → AVOID. Risk-off → mode 1 BUY needs Quality ≥ `quality.strong` | Cap |
 | 5 | Expectations caps | Expectations ≥ `expectations.cap` (priced-in / overheating) | At most **WAIT** ("good business, price already assumes it") |
@@ -98,7 +99,7 @@ The mode decides how Quality and Value combine at step 3:
 - **Value Hunter (default):** passes step 2 at a moderate quality floor, then decides on Value.
 - **Quality Compounder:** high quality floor at step 2; step 3 uses Value only as a sanity floor (not "cheap", just "not absurd").
 
-A single blended "overall" score is still shown (users expect a number), but it is **output, not the decision**: `overall = w_q·Quality + w_v·Value + w_e·(10 − Expectations)`, with mode weights.
+The screen shows one blended "overall" 0–10 number with Quality / Value / Expectations beneath it. The blended number is **output, not the decision**: `overall = w_q·Quality + w_v·Value + w_e·(10 − Expectations)`, with mode weights.
 
 ---
 
@@ -138,7 +139,7 @@ Status: `current` = in code today · `assumed` = proposed, not built · `validat
 | `mos.base` (BUY minimum) | 20% | 20% | assumed | INVESTMENT_PHILOSOPHY mode 1 | — |
 | `mos.regimeBonus` | 0 / +5 / +10% | same | current (not applied) | risk-on / neutral / risk-off | `macroRegime.ts` |
 | `suggestedBuy.factor` | 0.75 × fair value | same | current | | `verdictEngine.ts` |
-| `dcf.riskFree` | 4.5% | **to review** (JGB ≪ UST) | current | single default for both markets | `dcfAdvanced.ts` |
+| `dcf.riskFree` | 4.5% | live JGB 10Y, fallback 2% | current (US) / decided (JP) | owner decision 2026-10-25 | `dcfAdvanced.ts` |
 | `dcf.equityRiskPremium` | 5.5% | 5.5% | current | | `dcfAdvanced.ts` |
 | `dcf.terminalGrowth` | 3% | **to review** | current | | `dcfAdvanced.ts` |
 | `dcf.growthClamp` | −5% … +15%, fading to terminal by year 10 | same | current | median of FCF CAGR, revenue CAGR, EPS growth | `dcfAdvanced.ts` |
@@ -174,10 +175,11 @@ Status: `current` = in code today · `assumed` = proposed, not built · `validat
 
 ---
 
-## 8. Questions for the owner
+## 8. Owner decisions (2026-10-25)
 
-1. Is the layer structure (§2) and gate order (§3) right? Especially: should Quality Compounder treat low quality as **AVOID** (proposed) or WAIT?
-2. Should gate 1 treat Japan `REJECT` as AVOID, or only cap at WAIT? Today's REJECT includes P/E > 2× sector ceiling, which is a value signal, not a business-quality one.
-3. Keep a blended "overall" number on screen, or show the three scores only?
-4. Japan DCF uses a 4.5% risk-free rate (US-like). Use JGB 10Y for `.T` tickers?
-5. Where should the verdict log live (needs persistence — currently there is none)?
+1. **Quality gate:** failing it caps at **WAIT in both modes**. Quality Compounder uses a higher floor, not a harsher result.
+2. **Japan REJECT:** split by gate. Business-quality hard fails (D/E, ROE, shareholder return, revenue growth) → **AVOID**. Valuation hard fails (P/E, PEG) → cap at **WAIT**.
+3. **Display:** keep the blended overall number, with the three scores beneath it.
+4. **Japan DCF:** use the live JGB 10-year yield for `.T` tickers, with a fixed fallback (~2%) when unavailable.
+
+**Still open:** where the verdict log lives (needs persistence; there is none today). Needed before build step 2.
