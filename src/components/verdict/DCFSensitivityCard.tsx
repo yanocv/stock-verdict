@@ -118,7 +118,11 @@ export function DCFSensitivityCard({ dcf, currentPrice, currency }: DCFSensitivi
         )}
 
         {dcf.baseCase === null && (
-          <p className="text-sm text-muted-foreground">Insufficient data for DCF valuation (requires positive free cash flow).</p>
+          <p className="text-sm text-muted-foreground">
+            {dcf.currencyMismatch
+              ? `No DCF valuation: financials are reported in ${dcf.currencyMismatch.financial} but the price is in ${dcf.currencyMismatch.price}.`
+              : 'Insufficient data for DCF valuation (requires positive free cash flow).'}
+          </p>
         )}
       </CardContent>
     </Card>

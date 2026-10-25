@@ -6,6 +6,8 @@ export interface StockOverview {
   marketCap: number;
   currentPrice: number;
   currency: string;
+  /** Currency the financial statements are reported in (differs for ADRs, e.g. TSM: TWD). */
+  financialCurrency: string;
   exchange: string;
   fiftyTwoWeekHigh: number;
   fiftyTwoWeekLow: number;

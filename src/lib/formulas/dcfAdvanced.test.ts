@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { BalanceSheet, FinancialMetrics, StockOverview } from '@/types';
 import {
   runAdvancedDCFForStock,
+  getCurrencyMismatch,
   projectCashFlows,
   cagr,
   estimateGrowthRate,
@@ -189,7 +190,12 @@ describe('runAdvancedDCF', () => {
   });
 });
 describe('runAdvancedDCFForStock', () => {
-  const overview = { sharesOutstanding: 1_000_000, currentPrice: 50 } as StockOverview;
+  const overview = {
+    sharesOutstanding: 1_000_000,
+    currentPrice: 50,
+    currency: 'USD',
+    financialCurrency: 'USD',
+  } as StockOverview;
   const balanceSheet = { totalDebt: 2_000_000, cash: 500_000 } as BalanceSheet;
   const financials = { freeCashFlow: 5_000_000, beta: 1.2, epsGrowth: 30 } as FinancialMetrics;
 
@@ -204,8 +210,17 @@ describe('runAdvancedDCFForStock', () => {
       riskFreeRate: null,
       currentPrice: 50,
     });
-    expect(result).toEqual(direct);
+    expect(result).toEqual({ ...direct, currencyMismatch: null });
     expect(result.baseCase).not.toBeNull();
+  });
+
+  it('returns no fair value or table when financials use another currency (ADR)', () => {
+    const adr = { ...overview, financialCurrency: 'TWD' };
+    const result = runAdvancedDCFForStock(adr, financials, balanceSheet);
+    expect(result.baseCase).toBeNull();
+    expect(result.marginOfSafety).toBeNull();
+    expect(result.sensitivityTable).toEqual([]);
+    expect(result.currencyMismatch).toEqual({ price: 'USD', financial: 'TWD' });
   });
 
   it('returns no base case when free cash flow is missing', () => {
@@ -278,5 +293,20 @@ describe('estimateGrowthRate', () => {
       incomeAnnual: [],
     };
     expect(estimateGrowthRate({ epsGrowth: null }, short)).toBe(DEFAULT_GROWTH_RATE);
+  });
+});
+
+describe('getCurrencyMismatch', () => {
+  it('returns null when currencies match', () => {
+    expect(getCurrencyMismatch({ currency: 'JPY', financialCurrency: 'JPY' })).toBeNull();
+  });
+
+  it('returns null when financial currency is unknown', () => {
+    expect(getCurrencyMismatch({ currency: 'USD', financialCurrency: '' })).toBeNull();
+  });
+
+  it('returns both currencies for an ADR', () => {
+    expect(getCurrencyMismatch({ currency: 'USD', financialCurrency: 'JPY' }))
+      .toEqual({ price: 'USD', financial: 'JPY' });
   });
 });

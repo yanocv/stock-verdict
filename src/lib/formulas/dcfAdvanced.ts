@@ -300,6 +300,19 @@ export function runAdvancedDCF(params: AdvancedDCFParams): DCFAnalysis {
   };
 }
 /**
+ * Returns the two currencies when the financial statements are reported in a
+ * different currency than the share price (e.g. ADRs), else null. Per-share
+ * values from statement amounts are meaningless without conversion and an ADR
+ * ratio, so callers should not show them.
+ */
+export function getCurrencyMismatch(
+  overview: Pick<StockOverview, 'currency' | 'financialCurrency'>
+): { price: string; financial: string } | null {
+  const financial = overview.financialCurrency || overview.currency;
+  return financial !== overview.currency ? { price: overview.currency, financial } : null;
+}
+
+/**
  * Runs the advanced DCF from fetched stock data, so every caller (full
  * analysis, screener) values a stock with the same inputs.
  */
@@ -309,8 +322,10 @@ export function runAdvancedDCFForStock(
   balanceSheet: BalanceSheet,
   history?: FinancialHistory | null
 ): DCFAnalysis {
-  return runAdvancedDCF({
-    freeCashFlow: financials.freeCashFlow ?? 0,
+  const currencyMismatch = getCurrencyMismatch(overview);
+  const analysis = runAdvancedDCF({
+    // No FCF → no base case when currencies differ
+    freeCashFlow: currencyMismatch ? 0 : financials.freeCashFlow ?? 0,
     sharesOutstanding: overview.sharesOutstanding,
     netDebt: balanceSheet.totalDebt - balanceSheet.cash,
     beta: financials.beta ?? 1.0,
@@ -318,4 +333,7 @@ export function runAdvancedDCFForStock(
     riskFreeRate: null, // will use DEFAULT_RISK_FREE_RATE (4.5%)
     currentPrice: overview.currentPrice,
   });
+  return currencyMismatch
+    ? { ...analysis, sensitivityTable: [], currencyMismatch }
+    : { ...analysis, currencyMismatch };
 }

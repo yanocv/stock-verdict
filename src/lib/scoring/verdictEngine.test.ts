@@ -505,3 +505,19 @@ describe('generateVerdict — missing data', () => {
     expect(result.missingData).not.toContain('P/E');
   });
 });
+
+describe('generateVerdict — currency mismatch', () => {
+  it('skips the fallback fair value and flags it as missing', () => {
+    const result = generateVerdict({
+      financials: strongMetrics,
+      balanceSheet,
+      price: 150,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+      sharesOutstanding: 1_000,
+      currencyMismatch: true,
+    });
+    expect(result.fairValue).toBeNull();
+    expect(result.suggestedBuyPrice).toBeCloseTo(150 * 0.85, 6);
+    expect(result.missingData).toContain('fair value (financials in a different currency)');
+  });
+});

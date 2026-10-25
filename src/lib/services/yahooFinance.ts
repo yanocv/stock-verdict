@@ -155,6 +155,7 @@ export async function fetchStockData(ticker: string): Promise<YahooStockData> {
     marketCap,
     currentPrice,
     currency,
+    financialCurrency: finData.financialCurrency ?? currency,
     exchange: price.exchangeName ?? '',
     fiftyTwoWeekHigh: num(summary.fiftyTwoWeekHigh) || currentPrice,
     fiftyTwoWeekLow: num(summary.fiftyTwoWeekLow) || currentPrice,

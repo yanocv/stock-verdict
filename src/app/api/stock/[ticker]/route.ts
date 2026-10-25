@@ -95,6 +95,7 @@ export async function GET(
       technicalIndicators,
       dcfFairValuePerShare: dcfAnalysis.baseCase,
       sharesOutstanding: overview.sharesOutstanding,
+      currencyMismatch: dcfAnalysis.currencyMismatch != null,
     });
 
     // 8. Run individual investor lenses
@@ -108,6 +109,15 @@ export async function GET(
     if (overview.sharesOutstanding > 1 && buffett.fairValue !== null) {
       buffett.fairValue = buffett.fairValue / overview.sharesOutstanding;
       buffett.buyBelow = buffett.fairValue * 0.75;
+    }
+
+    // Lens fair values come from statement amounts — meaningless when the
+    // statements use a different currency than the price (ADRs)
+    if (dcfAnalysis.currencyMismatch) {
+      for (const lens of [buffett, graham, lynch]) {
+        lens.fairValue = null;
+        lens.buyBelow = null;
+      }
     }
 
     // 10. Japan 6-gate TOPIX filter

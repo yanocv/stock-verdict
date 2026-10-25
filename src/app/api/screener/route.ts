@@ -47,6 +47,7 @@ async function processTicker(
     newsScore: 5, // neutral — skip per-ticker news fetch to keep screener fast
     dcfFairValuePerShare: dcfAnalysis.baseCase,
     sharesOutstanding: overview.sharesOutstanding,
+    currencyMismatch: dcfAnalysis.currencyMismatch != null,
   });
 
   const upside =

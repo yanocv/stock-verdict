@@ -33,6 +33,11 @@ export interface VerdictEngineParams {
    * is missing). Defaults to 1, which yields a whole-company value.
    */
   sharesOutstanding?: number;
+  /**
+   * True when financial statements and price use different currencies (ADRs).
+   * Skips the fallback DCF, whose per-share value would be wrong.
+   */
+  currencyMismatch?: boolean;
 }
 
 /**
@@ -61,6 +66,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     technicalIndicators,
     dcfFairValuePerShare,
     sharesOutstanding = 1,
+    currencyMismatch = false,
   } = params;
 
   // Missing fields (null) leave a score unchanged instead of counting as zero:
@@ -228,6 +234,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   ];
   if (financials.eps === null || financials.eps > 0) {coreInputs.push(['P/E', financials.peRatio]);}
   const missingData = coreInputs.filter(([, v]) => v === null).map(([name]) => name);
+  if (currencyMismatch) {missingData.push('fair value (financials in a different currency)');}
 
   // Confidence: how far from the thresholds we are (50-95%),
   // minus 5 points per missing core input (floor 20%).
@@ -243,7 +250,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   const MAX_DCF_GROWTH_RATE = 0.15;
 
   let fairValue: number | null = null;
-  if (fcf !== null && fcf > 0) {
+  if (!currencyMismatch && fcf !== null && fcf > 0) {
     fairValue = dcfFairValue({
       freeCashFlow: fcf,
       growthRate: Math.min(
