@@ -4,6 +4,7 @@ import { generateVerdict } from '@/lib/scoring/verdictEngine';
 import { scoreMacro } from '@/lib/scoring/macroScore';
 import { getBenchmarksForSector } from '@/lib/benchmarks/industries';
 import { NIKKEI_UNIVERSE } from '@/lib/screener/nikkeiUniverse';
+import { runAdvancedDCFForStock } from '@/lib/formulas/dcfAdvanced';
 
 export interface ScreenerResult {
   ticker: string;
@@ -34,6 +35,7 @@ async function processTicker(
   const stockData = await fetchStockData(ticker);
   const { overview, financials, balanceSheet } = stockData;
   const benchmarks = getBenchmarksForSector(overview.sector || sector);
+  const dcfAnalysis = runAdvancedDCFForStock(overview, financials, balanceSheet);
 
   const verdict = generateVerdict({
     financials,
@@ -43,6 +45,8 @@ async function processTicker(
     sector: overview.sector || sector,
     macroScore,
     newsScore: 5, // neutral — skip per-ticker news fetch to keep screener fast
+    dcfFairValuePerShare: dcfAnalysis.baseCase,
+    sharesOutstanding: overview.sharesOutstanding,
   });
 
   const upside =

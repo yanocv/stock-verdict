@@ -1,4 +1,4 @@
-import type { DCFAnalysis, SensitivityCell } from '@/types';
+import type { BalanceSheet, DCFAnalysis, FinancialMetrics, SensitivityCell, StockOverview } from '@/types';
 
 /**
  * Default equity risk premium (Damodaran global estimate).
@@ -216,4 +216,23 @@ export function runAdvancedDCF(params: AdvancedDCFParams): DCFAnalysis {
     sensitivityTable,
     marginOfSafety,
   };
+}
+/**
+ * Runs the advanced DCF from fetched stock data, so every caller (full
+ * analysis, screener) values a stock with the same inputs.
+ */
+export function runAdvancedDCFForStock(
+  overview: StockOverview,
+  financials: FinancialMetrics,
+  balanceSheet: BalanceSheet
+): DCFAnalysis {
+  return runAdvancedDCF({
+    freeCashFlow: financials.freeCashFlow ?? 0,
+    sharesOutstanding: overview.sharesOutstanding,
+    netDebt: balanceSheet.totalDebt - balanceSheet.cash,
+    beta: financials.beta ?? 1.0,
+    growthRate: Math.min(0.20, Math.max(-0.05, (financials.epsGrowth ?? 5) / 100)),
+    riskFreeRate: null, // will use DEFAULT_RISK_FREE_RATE (4.5%)
+    currentPrice: overview.currentPrice,
+  });
 }

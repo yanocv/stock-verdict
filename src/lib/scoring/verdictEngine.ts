@@ -25,6 +25,11 @@ export interface VerdictEngineParams {
    * This is the primary fix for the "WAIT despite trading 50% below fair value" bug.
    */
   dcfFairValuePerShare?: number | null;
+  /**
+   * Shares outstanding for the fallback DCF (used when dcfFairValuePerShare
+   * is missing). Defaults to 1, which yields a whole-company value.
+   */
+  sharesOutstanding?: number;
 }
 
 /**
@@ -52,6 +57,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     newsScore: newsScoreInput,
     technicalIndicators,
     dcfFairValuePerShare,
+    sharesOutstanding = 1,
   } = params;
 
   // --- Financials Score (0-10) ---
@@ -195,7 +201,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   const minDistance = Math.min(distanceFromWait, distanceFromBuy);
   const confidence = Math.round(Math.min(50 + minDistance * 15, 95));
 
-  // Fair value via DCF (used for display — sharesOutstanding=1, corrected in route)
+  // Fallback fair value via simple DCF (display only, when no advanced DCF is given)
   const DEFAULT_EPS_GROWTH_RATE = 5;
   const MIN_DCF_GROWTH_RATE = 0.02;
   const MAX_DCF_GROWTH_RATE = 0.15;
@@ -210,7 +216,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
       ),
       discountRate: 0.09,
       terminalGrowthRate: 0.03,
-      sharesOutstanding: 1,
+      sharesOutstanding: sharesOutstanding > 0 ? sharesOutstanding : 1,
       projectionYears: 10,
     });
   }

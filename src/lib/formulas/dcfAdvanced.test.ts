@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import type { BalanceSheet, FinancialMetrics, StockOverview } from '@/types';
 import {
+  runAdvancedDCFForStock,
   calculateWACC,
   dcfWithWACC,
   buildSensitivityTable,
@@ -180,5 +182,30 @@ describe('runAdvancedDCF', () => {
   it('clamps growth rate above 20%', () => {
     const result = runAdvancedDCF({ ...baseParams, growthRate: 0.50 });
     expect(result.growthRate).toBe(0.20);
+  });
+});
+describe('runAdvancedDCFForStock', () => {
+  const overview = { sharesOutstanding: 1_000_000, currentPrice: 50 } as StockOverview;
+  const balanceSheet = { totalDebt: 2_000_000, cash: 500_000 } as BalanceSheet;
+  const financials = { freeCashFlow: 5_000_000, beta: 1.2, epsGrowth: 30 } as FinancialMetrics;
+
+  it('matches runAdvancedDCF with inputs derived from stock data', () => {
+    const result = runAdvancedDCFForStock(overview, financials, balanceSheet);
+    const direct = runAdvancedDCF({
+      freeCashFlow: 5_000_000,
+      sharesOutstanding: 1_000_000,
+      netDebt: 1_500_000,
+      beta: 1.2,
+      growthRate: 0.20, // 30% EPS growth clamped to 20%
+      riskFreeRate: null,
+      currentPrice: 50,
+    });
+    expect(result).toEqual(direct);
+    expect(result.baseCase).not.toBeNull();
+  });
+
+  it('returns no base case when free cash flow is missing', () => {
+    const result = runAdvancedDCFForStock(overview, { ...financials, freeCashFlow: null }, balanceSheet);
+    expect(result.baseCase).toBeNull();
   });
 });

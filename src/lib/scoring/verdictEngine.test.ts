@@ -177,6 +177,37 @@ describe('generateVerdict', () => {
     expect(overvaluedResult.scores.valuation).toBeLessThan(baseResult.scores.valuation);
   });
 
+  it('divides the fallback DCF fair value by sharesOutstanding', () => {
+    const whole = generateVerdict({
+      financials: strongMetrics,
+      balanceSheet,
+      price: 150,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+    });
+    const perShare = generateVerdict({
+      financials: strongMetrics,
+      balanceSheet,
+      price: 150,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+      sharesOutstanding: 1_000,
+    });
+    expect(whole.fairValue).not.toBeNull();
+    expect(perShare.fairValue).toBeCloseTo(whole.fairValue! / 1_000, 2);
+    expect(perShare.suggestedBuyPrice).toBeCloseTo(perShare.fairValue! * 0.75, 2);
+  });
+
+  it('ignores sharesOutstanding when dcfFairValuePerShare is provided', () => {
+    const result = generateVerdict({
+      financials: strongMetrics,
+      balanceSheet,
+      price: 50,
+      industryBenchmarks: DEFAULT_BENCHMARKS,
+      dcfFairValuePerShare: 100,
+      sharesOutstanding: 1_000,
+    });
+    expect(result.fairValue).toBe(100);
+  });
+
   it('skips DCF margin of safety when dcfFairValuePerShare is null', () => {
     const withNull = generateVerdict({
       financials: strongMetrics,

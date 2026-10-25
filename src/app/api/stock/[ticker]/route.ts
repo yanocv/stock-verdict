@@ -14,7 +14,7 @@ import { runJapanFilter } from '@/lib/scoring/japanFilter';
 import { getBenchmarksForSector } from '@/lib/benchmarks/industries';
 import { generateAINarrative } from '@/lib/services/claudeService';
 import { calculateRSI, classifyRSI, calculateSMA, extractCloses } from '@/lib/formulas/rsi';
-import { runAdvancedDCF } from '@/lib/formulas/dcfAdvanced';
+import { runAdvancedDCFForStock } from '@/lib/formulas/dcfAdvanced';
 import type { StockVerdictResponse, TechnicalIndicators } from '@/types';
 
 export async function GET(
@@ -55,37 +55,7 @@ export async function GET(
     // 4. Get industry benchmarks for the sector
     const benchmarks = getBenchmarksForSector(overview.sector);
 
-    // 5. Run the master verdict engine with real macro and news scores
-    const verdict = generateVerdict({
-      financials,
-      balanceSheet,
-      price: overview.currentPrice,
-      industryBenchmarks: benchmarks,
-      sector: overview.sector,
-      macroScore,
-      newsScore,
-    });
-
-    // 6. Run individual investor lenses
-    const buffett = evaluateBuffett(financials, balanceSheet);
-    const graham = evaluateGraham(financials, balanceSheet, {
-      currentPrice: overview.currentPrice,
-    });
-    const lynch = evaluateLynch(financials, balanceSheet);
-
-    // 7. Fix per-share values using real shares outstanding
-    if (overview.sharesOutstanding > 1) {
-      if (buffett.fairValue !== null) {
-        buffett.fairValue = buffett.fairValue / overview.sharesOutstanding;
-        buffett.buyBelow = buffett.fairValue * 0.75;
-      }
-      if (verdict.fairValue !== null) {
-        verdict.fairValue = verdict.fairValue / overview.sharesOutstanding;
-        verdict.suggestedBuyPrice = verdict.fairValue * 0.75;
-      }
-    }
-
-    // 8. Technical indicators from price history
+    // 5. Technical indicators from price history
     const closes = extractCloses(priceHistory);
     const rsi = calculateRSI(closes);
     const rsiSignal = rsi !== null ? classifyRSI(rsi) : null;
@@ -110,19 +80,35 @@ export async function GET(
       trendVsSma200: sma200 !== null ? (currentPrice > sma200 ? 'above' : 'below') : null,
     };
 
-    // 9. Advanced DCF with WACC + sensitivity table
-    const netDebt = balanceSheet.totalDebt - balanceSheet.cash;
-    const fcfGrowthRate = Math.min(0.20, Math.max(-0.05, (financials.epsGrowth ?? 5) / 100));
+    // 6. Advanced DCF with WACC + sensitivity table
+    const dcfAnalysis = runAdvancedDCFForStock(overview, financials, balanceSheet);
 
-    const dcfAnalysis = runAdvancedDCF({
-      freeCashFlow: financials.freeCashFlow ?? 0,
+    // 7. Run the master verdict engine with real macro, news, technicals and DCF
+    const verdict = generateVerdict({
+      financials,
+      balanceSheet,
+      price: overview.currentPrice,
+      industryBenchmarks: benchmarks,
+      sector: overview.sector,
+      macroScore,
+      newsScore,
+      technicalIndicators,
+      dcfFairValuePerShare: dcfAnalysis.baseCase,
       sharesOutstanding: overview.sharesOutstanding,
-      netDebt,
-      beta: financials.beta ?? 1.0,
-      growthRate: fcfGrowthRate,
-      riskFreeRate: null, // will use DEFAULT_RISK_FREE_RATE (4.5%)
+    });
+
+    // 8. Run individual investor lenses
+    const buffett = evaluateBuffett(financials, balanceSheet);
+    const graham = evaluateGraham(financials, balanceSheet, {
       currentPrice: overview.currentPrice,
     });
+    const lynch = evaluateLynch(financials, balanceSheet);
+
+    // 9. Fix Buffett per-share values using real shares outstanding
+    if (overview.sharesOutstanding > 1 && buffett.fairValue !== null) {
+      buffett.fairValue = buffett.fairValue / overview.sharesOutstanding;
+      buffett.buyBelow = buffett.fairValue * 0.75;
+    }
 
     // 10. Japan 6-gate TOPIX filter
     const japanFilter = runJapanFilter(
