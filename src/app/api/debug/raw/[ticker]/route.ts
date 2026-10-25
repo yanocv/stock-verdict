@@ -7,6 +7,11 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ ticker: string }> }
 ) {
+  // Raw data dumps are for local debugging only — never expose in production.
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   const { ticker } = await params;
   const t = /^\d{4}$/.test(ticker) ? `${ticker}.T` : ticker.toUpperCase();
 

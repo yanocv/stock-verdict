@@ -2,7 +2,8 @@ import type { StockOverview, FinancialMetrics, Verdict, MacroData, NewsArticle }
 
 // Uses Anthropic REST API directly via fetch — no SDK dependency required.
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-3-5-haiku-20241022';
+const DEFAULT_MODEL = 'claude-haiku-5-5';
+const MODEL = process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
 
 export interface NarrativeInput {
   overview: StockOverview;
