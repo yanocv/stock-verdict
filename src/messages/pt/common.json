@@ -23,6 +23,7 @@
   "emptyStateHint": "Suporta ações dos EUA (AAPL, TSLA, MSFT) e ações japonesas (7203, 9984, 6758)",
   "score": "Pontuação",
   "confidence": "Confiança",
+  "missingData": "Dados ausentes (reduz a confiança): {fields}",
   "fairValue": "Valor Justo",
   "buyBelow": "Comprar Abaixo de",
   "analysis": "Análise",

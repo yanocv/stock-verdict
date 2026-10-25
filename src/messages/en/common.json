@@ -23,6 +23,7 @@
   "emptyStateHint": "Supports US stocks (AAPL, TSLA, MSFT) and Japanese stocks (7203, 9984, 6758)",
   "score": "Score",
   "confidence": "Confidence",
+  "missingData": "Missing data (lowers confidence): {fields}",
   "fairValue": "Fair Value",
   "buyBelow": "Buy Below",
   "analysis": "Analysis",

@@ -454,3 +454,54 @@ describe('archetype scenarios', () => {
     })).not.toThrow();
   });
 });
+
+describe('generateVerdict — missing data', () => {
+  const base = { balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS };
+
+  it('leaves scores unchanged for missing fields instead of scoring them as zero', () => {
+    const neutralRoe = { ...strongMetrics, roe: 12 }; // between poor and average → no adjustment
+    const missing = generateVerdict({
+      ...base,
+      financials: { ...strongMetrics, roe: null, currentRatio: null },
+    });
+    const zero = generateVerdict({
+      ...base,
+      financials: { ...strongMetrics, roe: 0, currentRatio: 0 },
+    });
+    expect(missing.scores.financials).toBeGreaterThan(zero.scores.financials);
+    expect(missing.scores.health).toBeGreaterThan(zero.scores.health);
+    const missingRoeOnly = generateVerdict({ ...base, financials: { ...strongMetrics, roe: null } });
+    expect(missingRoeOnly.scores.financials)
+      .toBe(generateVerdict({ ...base, financials: neutralRoe }).scores.financials);
+  });
+
+  it('does not report negative FCF when FCF is missing', () => {
+    const result = generateVerdict({ ...base, financials: { ...strongMetrics, freeCashFlow: null } });
+    expect(result.reasons.bearish).not.toContain('Negative or zero free cash flow');
+    expect(result.missingData).toContain('free cash flow');
+  });
+
+  it('lowers confidence by 5 points per missing core input', () => {
+    // ROE 12 scores no adjustment, so both verdicts have the same overall score
+    const full = generateVerdict({ ...base, financials: { ...strongMetrics, roe: 12 } });
+    const gap = generateVerdict({ ...base, financials: { ...strongMetrics, roe: null } });
+    expect(gap.scores.overall).toBe(full.scores.overall);
+    expect(full.missingData).toEqual([]);
+    expect(gap.missingData).toEqual(['ROE']);
+    expect(gap.confidence).toBe(full.confidence - 5);
+  });
+
+  it('never drops confidence below 20%', () => {
+    const empty: FinancialMetrics = Object.fromEntries(
+      Object.keys(strongMetrics).map((k) => [k, null])
+    ) as unknown as FinancialMetrics;
+    const result = generateVerdict({ ...base, financials: empty });
+    expect(result.confidence).toBeGreaterThanOrEqual(20);
+    expect(result.missingData.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it('does not count P/E as missing for a loss-making company', () => {
+    const result = generateVerdict({ ...base, financials: { ...weakMetrics, peRatio: null } });
+    expect(result.missingData).not.toContain('P/E');
+  });
+});

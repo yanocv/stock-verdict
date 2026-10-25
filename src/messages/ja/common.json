@@ -23,6 +23,7 @@
   "emptyStateHint": "米国株（AAPL、TSLA、MSFT）および日本株（7203、9984、6758）に対応",
   "score": "スコア",
   "confidence": "信頼度",
+  "missingData": "データ不足（信頼度を下げています）: {fields}",
   "fairValue": "適正価格",
   "buyBelow": "買い推奨価格",
   "analysis": "分析",

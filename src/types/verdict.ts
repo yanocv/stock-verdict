@@ -23,6 +23,8 @@ export interface Verdict {
     bearish: string[];
   };
   lynchCategory: LynchCategory;
+  /** Core inputs that were unavailable (lowers confidence; not scored as zero). */
+  missingData: string[];
 }
 
 export interface InvestorVerdict {

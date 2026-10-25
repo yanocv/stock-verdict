@@ -10,6 +10,9 @@ import type { TechnicalIndicators } from '@/types/technicals';
 import { classifyLynchCategory } from '@/lib/classifiers/lynchCategory';
 import { dcfFairValue } from '@/lib/formulas/valuation';
 
+/** Confidence points removed per missing core input. */
+const MISSING_INPUT_CONFIDENCE_PENALTY = 5;
+
 export interface VerdictEngineParams {
   financials: FinancialMetrics;
   balanceSheet: BalanceSheet;
@@ -60,23 +63,33 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     sharesOutstanding = 1,
   } = params;
 
+  // Missing fields (null) leave a score unchanged instead of counting as zero:
+  // "no data" is not the same as "bad data". They lower confidence instead.
+
   // --- Financials Score (0-10) ---
   let financialsScore = 5; // start neutral
-  const roe = financials.roe ?? 0;
-  const npm = financials.netProfitMargin ?? 0;
-  const opMargin = financials.operatingMargin ?? 0;
-  const fcf = financials.freeCashFlow ?? 0;
+  const roe = financials.roe;
+  const npm = financials.netProfitMargin;
+  const opMargin = financials.operatingMargin;
+  const fcf = financials.freeCashFlow;
 
-  if (roe > industryBenchmarks.roe.good) {financialsScore += 1.5;}
-  else if (roe > industryBenchmarks.roe.average) {financialsScore += 0.5;}
-  else if (roe < industryBenchmarks.roe.poor) {financialsScore -= 2;}
+  if (roe !== null) {
+    if (roe > industryBenchmarks.roe.good) {financialsScore += 1.5;}
+    else if (roe > industryBenchmarks.roe.average) {financialsScore += 0.5;}
+    else if (roe < industryBenchmarks.roe.poor) {financialsScore -= 2;}
+  }
 
-  if (npm > industryBenchmarks.operatingMargin.good) {financialsScore += 1;}
-  else if (npm < industryBenchmarks.operatingMargin.poor) {financialsScore -= 1.5;}
+  if (npm !== null) {
+    if (npm > industryBenchmarks.operatingMargin.good) {financialsScore += 1;}
+    else if (npm < industryBenchmarks.operatingMargin.poor) {financialsScore -= 1.5;}
+  }
 
-  if (opMargin > industryBenchmarks.operatingMargin.good) {financialsScore += 0.5;}
-  if (fcf > 0) {financialsScore += 1;}
-  else {financialsScore -= 1.5;}
+  if (opMargin !== null && opMargin > industryBenchmarks.operatingMargin.good) {financialsScore += 0.5;}
+
+  if (fcf !== null) {
+    if (fcf > 0) {financialsScore += 1;}
+    else {financialsScore -= 1.5;}
+  }
 
   financialsScore = Math.max(0, Math.min(10, financialsScore));
 
@@ -113,12 +126,14 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
 
   // --- Health Score (0-10) ---
   let healthScore = 5;
-  const cr = financials.currentRatio ?? 0;
+  const cr = financials.currentRatio;
   const de = financials.debtToEquity ?? Infinity;
 
-  if (cr > 2) {healthScore += 1.5;}
-  else if (cr > 1) {healthScore += 0.5;}
-  else {healthScore -= 2;}
+  if (cr !== null) {
+    if (cr > 2) {healthScore += 1.5;}
+    else if (cr > 1) {healthScore += 0.5;}
+    else {healthScore -= 2;}
+  }
 
   if (de !== Infinity && de < industryBenchmarks.debtToEquity.low) {healthScore += 2;}
   else if (de !== Infinity && de < industryBenchmarks.debtToEquity.moderate) {healthScore += 0.5;}
@@ -128,8 +143,8 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
 
   // --- Technical Score (0-10) ---
   // Uses real RSI/SMA data when available; falls back to fundamental proxies.
-  const epsGrowth = financials.epsGrowth ?? 0;
-  const revenueGrowth = financials.revenueGrowth ?? 0;
+  const epsGrowth = financials.epsGrowth;
+  const revenueGrowth = financials.revenueGrowth;
   let technicalScore = 5;
 
   if (technicalIndicators) {
@@ -157,12 +172,16 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     if (beta > 0 && beta < 1.2) {technicalScore += 1;}
     else if (beta > 2)           {technicalScore -= 1.5;}
 
-    if (epsGrowth > 15)      {technicalScore += 2;}
-    else if (epsGrowth > 5)  {technicalScore += 0.5;}
-    else if (epsGrowth < 0)  {technicalScore -= 2;}
+    if (epsGrowth !== null) {
+      if (epsGrowth > 15)      {technicalScore += 2;}
+      else if (epsGrowth > 5)  {technicalScore += 0.5;}
+      else if (epsGrowth < 0)  {technicalScore -= 2;}
+    }
 
-    if (revenueGrowth > 10)  {technicalScore += 1;}
-    else if (revenueGrowth < 0) {technicalScore -= 1;}
+    if (revenueGrowth !== null) {
+      if (revenueGrowth > 10)  {technicalScore += 1;}
+      else if (revenueGrowth < 0) {technicalScore -= 1;}
+    }
   }
 
   technicalScore = Math.max(0, Math.min(10, technicalScore));
@@ -195,11 +214,28 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   const recommendation: VerdictRecommendation =
     overall > 7 ? 'BUY' : overall >= 4 ? 'WAIT' : 'AVOID';
 
-  // Confidence: how far from the thresholds we are (50-95%)
+  // Core inputs whose absence makes the verdict less certain.
+  // P/E is absent by definition for loss-makers, so only count it when EPS > 0.
+  const coreInputs: Array<[string, number | null]> = [
+    ['ROE', roe],
+    ['net margin', npm],
+    ['operating margin', opMargin],
+    ['free cash flow', fcf],
+    ['current ratio', cr],
+    ['debt/equity', financials.debtToEquity],
+    ['revenue growth', revenueGrowth],
+    ['EPS growth', epsGrowth],
+  ];
+  if (financials.eps === null || financials.eps > 0) {coreInputs.push(['P/E', financials.peRatio]);}
+  const missingData = coreInputs.filter(([, v]) => v === null).map(([name]) => name);
+
+  // Confidence: how far from the thresholds we are (50-95%),
+  // minus 5 points per missing core input (floor 20%).
   const distanceFromWait = Math.abs(overall - 4);
   const distanceFromBuy = Math.abs(overall - 7);
   const minDistance = Math.min(distanceFromWait, distanceFromBuy);
-  const confidence = Math.round(Math.min(50 + minDistance * 15, 95));
+  const distanceConfidence = Math.min(50 + minDistance * 15, 95);
+  const confidence = Math.round(Math.max(20, distanceConfidence - missingData.length * MISSING_INPUT_CONFIDENCE_PENALTY));
 
   // Fallback fair value via simple DCF (display only, when no advanced DCF is given)
   const DEFAULT_EPS_GROWTH_RATE = 5;
@@ -207,7 +243,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   const MAX_DCF_GROWTH_RATE = 0.15;
 
   let fairValue: number | null = null;
-  if (fcf > 0) {
+  if (fcf !== null && fcf > 0) {
     fairValue = dcfFairValue({
       freeCashFlow: fcf,
       growthRate: Math.min(
@@ -229,11 +265,11 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   const bullish: string[] = [];
   const bearish: string[] = [];
 
-  if (roe > industryBenchmarks.roe.good) {bullish.push(`Strong ROE of ${roe.toFixed(1)}%`);}
-  if (fcf > 0) {bullish.push('Positive free cash flow');}
+  if (roe !== null && roe > industryBenchmarks.roe.good) {bullish.push(`Strong ROE of ${roe.toFixed(1)}%`);}
+  if (fcf !== null && fcf > 0) {bullish.push('Positive free cash flow');}
   if (peg !== Infinity && peg < 1) {bullish.push(`PEG ratio of ${peg.toFixed(2)} indicates undervaluation`);}
-  if (cr > 2) {bullish.push(`Strong liquidity with current ratio of ${cr.toFixed(2)}`);}
-  if (epsGrowth > 10) {bullish.push(`EPS growing at ${epsGrowth.toFixed(1)}%`);}
+  if (cr !== null && cr > 2) {bullish.push(`Strong liquidity with current ratio of ${cr.toFixed(2)}`);}
+  if (epsGrowth !== null && epsGrowth > 10) {bullish.push(`EPS growing at ${epsGrowth.toFixed(1)}%`);}
 
   // DCF margin of safety reasons
   if (mosPercent !== null) {
@@ -251,17 +287,17 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     bullish.push('Current price already below our suggested entry level');
   }
 
-  if (fcf <= 0) {bearish.push('Negative or zero free cash flow');}
+  if (fcf !== null && fcf <= 0) {bearish.push('Negative or zero free cash flow');}
   if (de !== Infinity && de > industryBenchmarks.debtToEquity.high) {bearish.push(`High debt/equity ratio of ${de.toFixed(2)}`);}
-  if (cr < 1) {bearish.push(`Low current ratio of ${cr.toFixed(2)} — liquidity risk`);}
+  if (cr !== null && cr < 1) {bearish.push(`Low current ratio of ${cr.toFixed(2)} — liquidity risk`);}
   if (pe !== Infinity && pe > industryBenchmarks.pe.expensive) {bearish.push(`P/E of ${pe.toFixed(1)} may be overvalued`);}
-  if (epsGrowth < 0) {bearish.push(`EPS declining at ${epsGrowth.toFixed(1)}%`);}
+  if (epsGrowth !== null && epsGrowth < 0) {bearish.push(`EPS declining at ${epsGrowth.toFixed(1)}%`);}
 
   const lynchCategory = classifyLynchCategory({
-    epsGrowthRate: epsGrowth,
+    epsGrowthRate: epsGrowth ?? 0,
     sector,
     recentLoss: (financials.eps ?? 0) < 0,
-    improvingEarnings: epsGrowth > 0,
+    improvingEarnings: (epsGrowth ?? 0) > 0,
   });
 
   return {
@@ -272,5 +308,6 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     suggestedBuyPrice,
     reasons: { bullish, bearish },
     lynchCategory,
+    missingData,
   };
 }

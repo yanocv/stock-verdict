@@ -121,6 +121,11 @@ export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
                   {verdict.lynchCategory}
                 </span>
               </div>
+              {verdict.missingData.length > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t('missingData', { fields: verdict.missingData.join(', ') })}
+                </p>
+              )}
             </div>
 
             {verdict.fairValue !== null && (
