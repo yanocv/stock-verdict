@@ -32,6 +32,8 @@ export const FinancialMetricsSchema = z.object({
   dividendYield: z.number().nullable(),
   payoutRatio: z.number().nullable(),
   beta: z.number().nullable(),
+  forwardEps: z.number().nullable().optional(),
+  forwardEpsAnalysts: z.number().nullable().optional(),
 });
 
 export const BalanceSheetSchema = z.object({

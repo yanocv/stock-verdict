@@ -100,14 +100,13 @@ From daily closes:
 Then the **sanity cap** (§5.6).
 
 ### 5.2 Cash flow to discount ([`formulas/dcfAdvanced.ts`](../src/lib/formulas/dcfAdvanced.ts) `selectCashFlowBase`)
-Averages over the last **4 annual periods** *(param `dcf.cashFlowYears`)*, so one odd year can't swing the value. (Yahoo's single "TTM free cash flow" figure is not used when history exists: it was ~4× the annual figures for MHI.)
-- `avgFCF` = mean free cash flow; `avgNI` = mean net income.
-- If `avgNI > 0` and `avgFCF ÷ avgNI` is between **0.5 and 1.5** *(param `dcf.fcfToEarnings`)* → **use avgFCF** (`fcf` basis).
-- Else, if `avgNI > 0` → **use earnings after reinvestment** (`earnings` basis): `avgNI × payout`, where payout = 1 − long-run growth ÷ ROE, at least **0.5** *(param `dcf.minPayout`)*. This covers finance arms (Toyota), big advance payments and heavy investment years.
-- Else, if `avgFCF > 0` → use avgFCF.
-- Else → no DCF value.
-
-Without history (fallback): latest FCF and EPS × shares.
+Starts from **today's earning power**, not an average of past years (averaging undervalued companies whose profits just grew: MHI's 4-year FCF average was half its latest year).
+- **Current EPS** (`currentEps`): trailing EPS, blended **half-and-half** with analysts' EPS estimate for the current fiscal year when at least **3** analysts cover the stock *(param `dcf.forecastMinAnalysts`)*. Estimate only, if there is no trailing EPS. Source: Yahoo `earningsTrend` "0y".
+- **Current earnings** = current EPS × shares (latest annual net income if EPS is missing).
+- **Cash conversion** (`cashConversion`) = sum of free cash flow ÷ sum of net income over the last **4** years that have both figures *(param `dcf.cashFlowYears`)*, matched by year. Without history: latest FCF ÷ current earnings. (Yahoo's single "TTM free cash flow" is not used when history exists: it was ~4× the annual figures for MHI.)
+- If conversion is between **0.5 and 1.5** *(param `dcf.fcfToEarnings`)* → cash flow = current earnings × conversion, with conversion counted at most **1.0** *(param `dcf.maxCashConversion`)*: cash flow above earnings (working-capital swings, capex below depreciation) doesn't last (`fcf` basis).
+- Otherwise free cash flow is distorted (finance arms like Toyota's, big advance payments, heavy investment years) → cash flow = current earnings × payout (`earnings` basis), where payout = 1 − long-run growth ÷ ROE, at least **0.5** *(param `dcf.minPayout`)*.
+- If current earnings ≤ 0: 4-year average FCF if positive, else no DCF value.
 
 ### 5.3 Discount rate
 - **Risk-free rate** (`riskFreeRateFor`): live 10-year yield of the stock's home market. Tokyo tickers → JGB 10Y (MoF); others → US 10Y (`^TNX`). Fallbacks *(param)*: Japan 2.9%, US 4.5%.
@@ -115,7 +114,12 @@ Without history (fallback): latest FCF and EPS × shares.
 - **Cost of equity** (used as the discount rate; the company is treated as all-equity): `rf + beta × 5.5%` *(param `dcf.equityRiskPremium`)*, kept between 5% and 25%.
 
 ### 5.4 DCF projection (`runAdvancedDCF`)
-- **Starting growth** (`estimateGrowthRate`): median of FCF CAGR, revenue CAGR (both need ≥ 2 years between first and last point) and EPS growth; 5% when none. Kept between −5% and 15% *(param)*.
+- **Starting growth** (`estimateGrowthRate`), deliberately conservative:
+  1. Inputs: FCF CAGR, revenue CAGR (both need ≥ 2 years between first and last point), Yahoo's EPS growth, and **analysts' expected growth this year** (estimate ÷ trailing EPS − 1; needs ≥ 3 analysts and trailing EPS > 0). The analyst input is the only forward-looking one: without it, TDK (EPS expected to fall ~23%) was projected at the maximum.
+  2. Each input is clipped to **−10% … +25%** *(param `dcf.growthInputClip`)*, so a one-off +97% year counts as +25%.
+  3. Median of the clipped inputs.
+  4. Pulled **halfway** back to long-run growth (3%) *(param `dcf.growthShrink` 0.5)*: starting growth = 3% + 0.5 × (median − 3%). High growth rarely persists, and the value should be conservative.
+  5. 5% when there are no inputs. Finally kept between −5% and 15% *(param)*; after steps 2–4 the 15% limit is practically never reached.
 - **Long-run growth**: 3% *(param `dcf.terminalGrowth`)*, but never above the risk-free rate.
 - **10 years**: growth fades in a straight line from the starting rate (year 1) to long-run growth (year 10). Each year's cash flow is discounted at the cost of equity.
 - **Terminal value** (Gordon): year-10 cash flow × (1 + long-run growth) ÷ (cost of equity − long-run growth), discounted to today.
@@ -130,7 +134,7 @@ Without history (fallback): latest FCF and EPS × shares.
 - Fair value = book value per share × fair P/B. None if ROE ≤ g.
 
 ### 5.6 Sanity cap
-Reference = EPS × the sector's "fair" P/E (§6.1 benchmarks). If the method's value is above **1.5×** that *(param `dcf.sanityCap`)*, it is cut to 1.5× (`adjustment: 'capped'`). Values below the reference are kept: one-off gains can inflate EPS (SoftBank), and raising them would invent bargains. No cap when EPS ≤ 0.
+Reference = current EPS (§5.2, trailing blended with the analyst estimate) × the sector's "fair" P/E (§6.1 benchmarks). If the method's value is above **1.5×** that *(param `dcf.sanityCap`)*, it is cut to 1.5× (`adjustment: 'capped'`). Values below the reference are kept: one-off gains can inflate EPS (SoftBank), and raising them would invent bargains. No cap when EPS ≤ 0.
 
 The response returns `fairValueEstimate` with `method`, `modelValue` (before the cap), `multiplesValue` and `adjustment`.
 
@@ -139,7 +143,7 @@ The response returns `fairValueEstimate` with `method`, `modelValue` (before the
 ## 6. Verdict ([`scoring/verdictEngine.ts`](../src/lib/scoring/verdictEngine.ts) `generateVerdict`)
 
 ### 6.1 Sector benchmarks ([`benchmarks/industries.ts`](../src/lib/benchmarks/industries.ts))
-Each sector has bands for P/E, P/S, operating margin, ROE and debt/equity. Lookup (`resolveSectorKey`): Yahoo **industry** first (e.g. "Auto Manufacturers" → Auto Manufacturing, "Banks…" → Banking, "Telecom…" → Telecom, "Drug Manufacturers"/"Biotechnology" → Pharma/Biotech, retail industries → Retail), then the exact sector, then a sector alias (Healthcare → Pharma/Biotech, Consumer Defensive/Cyclical → Consumer Goods), else defaults (P/E 12/20/35, ROE 8/15/25…). Industrials and Basic Materials use the defaults today.
+Each sector has bands for P/E, P/S, operating margin, ROE and debt/equity. Lookup (`resolveSectorKey`): Yahoo **industry** first (e.g. "Auto Manufacturers" → Auto Manufacturing, "Banks…" → Banking, "Telecom…" → Telecom, "Drug Manufacturers"/"Biotechnology" → Pharma/Biotech, retail industries → Retail), then the exact sector, then a sector alias (Healthcare → Pharma/Biotech, Consumer Defensive/Cyclical → Consumer Goods), else defaults (P/E 12/20/35, ROE 8/15/25…). **Industrials** (P/E 10/16/28, ROE 5/10/15, operating margin 3/7/12, D/E 0.3/0.8/1.5) and **Basic Materials** (P/E 9/14/24, ROE 5/9/14, operating margin 4/9/15) have their own sets since 2026-10-25; Utilities, Real Estate and Communication Services (non-telecom) still use the defaults.
 
 ### 6.2 Sub-scores (each starts at 5, kept within 0–10)
 **Financials** (quality of earnings)
@@ -189,6 +193,8 @@ Overall = weighted average *(param `weights`)*: valuation **35%**, financials **
 | > 7 | **BUY** |
 | 4 – 7 | **WAIT** |
 | < 4 | **AVOID** |
+
+The verdict is decided on the overall score **as displayed** (rounded to one decimal), so a score shown as 4.0 is always WAIT.
 
 ### 6.5 Suggested entry price
 - With a fair value: fair value × (0.75 − regime bonus). Neutral regime → 70% of fair value.

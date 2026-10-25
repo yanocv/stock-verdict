@@ -84,10 +84,21 @@ export interface EngineParams {
      * which the market plainly doesn't accept (e.g. Toyota at ~9× earnings).
      */
     betaFloor: number;
-    /** Annual periods averaged for the cash-flow base (smooths one-off years) */
+    /** Annual periods used to measure cash conversion (FCF ÷ net income) */
     cashFlowYears: number;
     /** Use free cash flow when FCF ÷ net income is in this range; otherwise earnings */
     fcfToEarnings: { min: number; max: number };
+    /** Highest cash conversion credited: FCF above earnings doesn't last */
+    maxCashConversion: number;
+    /** Each growth input is clipped to this range before the median */
+    growthInputClip: { min: number; max: number };
+    /** Share of (median growth − long-run growth) kept; the rest reverts to long-run growth */
+    growthShrink: number;
+    /**
+     * Analysts needed before their current-year EPS estimate is blended in:
+     * current EPS = (trailing EPS + estimate) ÷ 2.
+     */
+    forecastMinAnalysts: number;
     /** Lowest share of earnings counted as distributable in the earnings method */
     minPayout: number;
     /**
@@ -158,6 +169,10 @@ export const DEFAULT_ENGINE_PARAMS: EngineParams = {
     betaFloor: 0.8,
     cashFlowYears: 4,
     fcfToEarnings: { min: 0.5, max: 1.5 },
+    maxCashConversion: 1.0,
+    growthInputClip: { min: -0.10, max: 0.25 },
+    growthShrink: 0.5,
+    forecastMinAnalysts: 3,
     minPayout: 0.5,
     sanityCap: 1.5,
     equityRiskPremium: 0.055, // Damodaran global estimate

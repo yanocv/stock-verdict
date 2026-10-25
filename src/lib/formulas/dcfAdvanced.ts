@@ -12,6 +12,8 @@ import { isJapaneseTicker } from '@/lib/scoring/japanFilter';
 
 const DCF_PARAMS = DEFAULT_ENGINE_PARAMS.dcf;
 
+const isFiniteNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
 /**
  * Default equity risk premium (Damodaran global estimate).
  * Used when no custom ERP is provided.
@@ -93,15 +95,33 @@ function seriesCagr(values: Array<number | null | undefined>): number | null {
  * - FCF CAGR over the annual history
  * - Revenue CAGR over the annual history
  * - Yahoo's earnings growth (latest quarter YoY — noisy on its own)
+ * - Analysts' expected growth this year: estimate ÷ trailing EPS − 1, when at
+ *   least `dcf.forecastMinAnalysts` cover the stock and trailing EPS > 0.
+ *   The only forward-looking input: without it, a company whose profits are
+ *   expected to fall (TDK, Oct 2026) was projected at the 15% maximum.
  *
- * The median keeps one outlier (e.g. a rebound quarter) from setting the
- * valuation. Falls back to DEFAULT_GROWTH_RATE when nothing is available.
+ * Each input is first clipped to `dcf.growthInputClip` (a +97% rebound year
+ * counts as +25%). The median keeps one outlier from setting the valuation.
+ * The median is then pulled `dcf.growthShrink` of the way back toward
+ * long-run growth: high growth rarely lasts (growth rates show little
+ * persistence beyond chance), and a conservative value is the point (Graham).
+ * Falls back to DEFAULT_GROWTH_RATE when nothing is available.
  */
 export function estimateGrowthRate(
-  financials: Pick<FinancialMetrics, 'epsGrowth'>,
+  financials: Pick<FinancialMetrics, 'epsGrowth'> &
+    Partial<Pick<FinancialMetrics, 'eps' | 'forwardEps' | 'forwardEpsAnalysts'>>,
   history?: Pick<FinancialHistory, 'cashFlowAnnual' | 'incomeAnnual'> | null
 ): number {
   const estimates: number[] = [];
+
+  const { eps, forwardEps, forwardEpsAnalysts } = financials;
+  if (
+    eps !== null && eps !== undefined && eps > 0 &&
+    isFiniteNumber(forwardEps) &&
+    (forwardEpsAnalysts ?? 0) >= DCF_PARAMS.forecastMinAnalysts
+  ) {
+    estimates.push(forwardEps / eps - 1);
+  }
 
   const fcfCagr = seriesCagr(history?.cashFlowAnnual.map((p) => p.freeCashFlow) ?? []);
   if (fcfCagr !== null) {estimates.push(fcfCagr);}
@@ -115,9 +135,11 @@ export function estimateGrowthRate(
 
   if (estimates.length === 0) {return DEFAULT_GROWTH_RATE;}
 
-  const sorted = [...estimates].sort((a, b) => a - b);
+  const { min, max } = DCF_PARAMS.growthInputClip;
+  const sorted = estimates.map((g) => Math.min(max, Math.max(min, g))).sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+  const median = sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+  return DEFAULT_TERMINAL_GROWTH_RATE + DCF_PARAMS.growthShrink * (median - DEFAULT_TERMINAL_GROWTH_RATE);
 }
 
 export interface AdvancedDCFParams {
@@ -175,47 +197,91 @@ function averageLast(values: Array<number | null | undefined>, count: number): n
 }
 
 export interface CashFlowBase {
-  /** 'fcf': average free cash flow. 'earnings': average net income × sustainable payout. */
+  /** 'fcf': current earnings × usual cash conversion. 'earnings': current earnings × sustainable payout. */
   basis: 'fcf' | 'earnings';
   /** Yearly cash flow to discount, in statement currency */
   amount: number;
 }
 
 /**
- * Picks the yearly cash flow the DCF discounts, averaged over the last
- * `dcf.cashFlowYears` annual periods so one odd year can't swing the value.
+ * EPS the valuation starts from: trailing EPS, blended half-and-half with
+ * analysts' current-year estimate when at least `dcf.forecastMinAnalysts`
+ * cover the stock. Half backward, half forward, so neither a stale year nor
+ * optimistic analysts decide alone.
+ */
+export function currentEps(
+  financials: Pick<FinancialMetrics, 'eps' | 'forwardEps' | 'forwardEpsAnalysts'>
+): number | null {
+  const { eps, forwardEps, forwardEpsAnalysts } = financials;
+  const forecast =
+    isFiniteNumber(forwardEps) && (forwardEpsAnalysts ?? 0) >= DCF_PARAMS.forecastMinAnalysts ? forwardEps : null;
+  if (eps !== null && forecast !== null) {return (eps + forecast) / 2;}
+  return eps ?? forecast;
+}
+
+/**
+ * How much of net income usually becomes free cash flow: sum of FCF ÷ sum of
+ * net income over the last `dcf.cashFlowYears` years that have both (matched
+ * by period, so the two never cover different years). Null when unknown or
+ * when those earnings sum to ≤ 0.
+ */
+export function cashConversion(
+  history: Pick<FinancialHistory, 'cashFlowAnnual' | 'incomeAnnual'>
+): number | null {
+  const netIncome = new Map(history.incomeAnnual.map((p) => [p.period, p.netIncome]));
+  const pairs = history.cashFlowAnnual
+    .map((p) => [p.freeCashFlow, netIncome.get(p.period)] as const)
+    .filter((pair): pair is readonly [number, number] => isFiniteNumber(pair[0]) && isFiniteNumber(pair[1]))
+    .slice(-DCF_PARAMS.cashFlowYears);
+  const fcfSum = pairs.reduce((s, [fcf]) => s + fcf, 0);
+  const niSum = pairs.reduce((s, [, ni]) => s + ni, 0);
+  return pairs.length > 0 && niSum > 0 ? fcfSum / niSum : null;
+}
+
+/**
+ * Picks the yearly cash flow the DCF discounts: **today's** earning power
+ * (currentEps × shares), turned into cash at the company's usual rate.
+ * Averaging past cash flows instead would undervalue a company whose profits
+ * have just grown (MHI's 4-year average was half its latest year).
  *
- * Free cash flow is used when it is in line with earnings (FCF ÷ net income
- * within `dcf.fcfToEarnings`). Otherwise it is distorted — finance arms
- * (Toyota), large advance payments (MHI), heavy investment years — and
- * earnings are used instead, minus what growth needs to be reinvested:
+ * When cash conversion is within `dcf.fcfToEarnings`, free cash flow tracks
+ * earnings: amount = earnings × conversion. Otherwise it is distorted —
+ * finance arms (Toyota), large advance payments, heavy investment years —
+ * and earnings are used minus what growth needs reinvested:
  * payout = 1 − growth ÷ ROE, at least `dcf.minPayout`.
  *
- * Without history it falls back to the latest FCF and EPS × shares.
- * Returns null when neither cash flow nor earnings is positive.
+ * Without history, conversion is latest FCF ÷ earnings. With no positive
+ * earnings, average free cash flow is used if positive; otherwise null.
  */
 export function selectCashFlowBase(
-  financials: Pick<FinancialMetrics, 'freeCashFlow' | 'eps' | 'roe'>,
+  financials: Pick<FinancialMetrics, 'freeCashFlow' | 'eps' | 'roe' | 'forwardEps' | 'forwardEpsAnalysts'>,
   history: Pick<FinancialHistory, 'cashFlowAnnual' | 'incomeAnnual'> | null | undefined,
   sharesOutstanding: number,
   longRunGrowth: number
 ): CashFlowBase | null {
-  const years = DCF_PARAMS.cashFlowYears;
-  const fcf =
-    averageLast(history?.cashFlowAnnual.map((p) => p.freeCashFlow) ?? [], years) ?? financials.freeCashFlow;
-  const latestEarnings =
-    financials.eps !== null && sharesOutstanding > 0 ? financials.eps * sharesOutstanding : null;
-  const earnings = averageLast(history?.incomeAnnual.map((p) => p.netIncome) ?? [], years) ?? latestEarnings;
+  const eps = currentEps(financials);
+  const earnings =
+    eps !== null && sharesOutstanding > 0
+      ? eps * sharesOutstanding
+      : averageLast(history?.incomeAnnual.map((p) => p.netIncome) ?? [], 1);
 
   if (earnings !== null && earnings > 0) {
+    const conversion =
+      (history ? cashConversion(history) : null) ??
+      (financials.freeCashFlow !== null ? financials.freeCashFlow / earnings : null);
     const { min, max } = DCF_PARAMS.fcfToEarnings;
-    if (fcf !== null && fcf / earnings >= min && fcf / earnings <= max) {
-      return { basis: 'fcf', amount: fcf };
+    if (conversion !== null && conversion >= min && conversion <= max) {
+      // FCF above earnings (working-capital swings, capex below depreciation)
+      // doesn't last, so it is never credited above earnings
+      return { basis: 'fcf', amount: earnings * Math.min(conversion, DCF_PARAMS.maxCashConversion) };
     }
     const roe = financials.roe !== null && financials.roe > 0 ? financials.roe / 100 : null;
     const payout = roe !== null ? Math.min(1, Math.max(DCF_PARAMS.minPayout, 1 - longRunGrowth / roe)) : DCF_PARAMS.minPayout;
     return { basis: 'earnings', amount: earnings * payout };
   }
+  const fcf =
+    averageLast(history?.cashFlowAnnual.map((p) => p.freeCashFlow) ?? [], DCF_PARAMS.cashFlowYears) ??
+    financials.freeCashFlow;
   return fcf !== null && fcf > 0 ? { basis: 'fcf', amount: fcf } : null;
 }
 

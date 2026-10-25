@@ -6,7 +6,7 @@ Next.js app that turns one ticker (US like `AAPL`, Tokyo like `7203` / `7203.T`)
 
 - `docs/PROJECT_SUMMARY_FOR_AI_AGENTS.md` — product, philosophy, progress
 - `docs/CALCULATIONS.md` — how the system calculates everything today (as built), step by step
-- `docs/ENGINE_SPEC.md` — source of truth for the verdict engine plans: current gaps, planned layers and gate order, owner decisions (§8, §9.6), parameter table, build order (§7, §9.5)
+- `docs/ENGINE_SPEC.md` — source of truth for the verdict engine plans: current gaps, planned layers and gate order, owner decisions (§8, §9.6, §10.4), investing principles (§10), **the plan (§10.3)**
 - `docs/docs_INVESTMENT_PHILOSOPHY.md`, `docs/docs_MASTER_PARAMETERS.md` — background only; where they disagree with ENGINE_SPEC or the code, ENGINE_SPEC and the code win
 
 ## Working rules (owner's preferences)
@@ -27,7 +27,7 @@ npm ci
 npm run dev
 npm run lint        # eslint . (flat config; 0 errors, 2 known set-state-in-effect warnings)
 npm run typecheck
-npm run test:run    # vitest; 339 tests as of 2026-10-25
+npm run test:run    # vitest; 347 tests as of 2026-10-25
 ```
 
 Env: copy `.env.example` → `.env.local`. `ANTHROPIC_API_KEY` is optional (AI summary is skipped without it); `ANTHROPIC_MODEL` defaults to `claude-haiku-5-5`.
@@ -52,7 +52,7 @@ Env: copy `.env.example` → `.env.local`. `ANTHROPIC_API_KEY` is optional (AI s
 
 ## State (2026-10-25)
 
-Done: lint fixed for Next 16; debug routes gated; model ID in env; technicals + DCF now feed the verdict; screener per-share fair value fixed; DCF growth = median of FCF CAGR / revenue CAGR / EPS growth, faded to terminal, capped 15%; missing data neutral + confidence penalty; ADR currency mismatch suppresses fair values; `params.ts`; ENGINE_SPEC v0.3 (§9 model proposal, owner decisions in §9.6: Japan first, NISA, JPY); §9 P1–P3, P8, P9 fixed (trend-based market regime; regime margin-of-safety bonus applied; live US 10Y and MoF JGB 10Y in the DCF; fair value by company type with averaged cash flow, earnings basis, P/B–ROE for financials, beta floor, sanity cap; Yahoo sector/industry names mapped to benchmark sets); `docs/CALCULATIONS.md` written. Next: §9 P10 (shareholder equity 0 in the balance-sheet snapshot), then the verdict log (storage decision still open).
+Done: lint fixed for Next 16; debug routes gated; model ID in env; technicals + DCF now feed the verdict; screener per-share fair value fixed; DCF growth = median of FCF CAGR / revenue CAGR / EPS growth, faded to terminal, capped 15%; missing data neutral + confidence penalty; ADR currency mismatch suppresses fair values; `params.ts`; ENGINE_SPEC v0.3 (§9 model proposal, owner decisions in §9.6: Japan first, NISA, JPY); §9 P1–P3, P8, P9 fixed (trend-based market regime; regime margin-of-safety bonus applied; live US 10Y and MoF JGB 10Y in the DCF; fair value by company type from current earnings (trailing EPS blended with analyst estimate) × cash conversion, earnings basis, P/B–ROE for financials, beta floor, sanity cap; conservative growth (inputs clipped, shrunk halfway to long-run); Yahoo sector/industry names mapped to benchmark sets incl. Industrials and Basic Materials; verdict decided on the displayed score); `docs/CALCULATIONS.md` written; investing principles (Graham + Housel) mapped in ENGINE_SPEC §10. Plan: ENGINE_SPEC §10.3. Owner approved §10 (P11–P14, exit plan with trailing stop on the last part, 2 : 1 reward-to-risk, SQLite for the verdict log); docs updated, source code not yet. Next in code: P10 (shareholder equity 0 in the balance-sheet snapshot), then P11.
 
 Not verified against live data: Yahoo's `financialData.financialCurrency` for ADRs (e.g. TSM should be TWD).
 

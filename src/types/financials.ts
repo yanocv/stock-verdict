@@ -15,6 +15,10 @@ export interface FinancialMetrics {
   dividendYield: number | null;
   payoutRatio: number | null;
   beta: number | null;
+  /** Analysts' average EPS estimate for the current fiscal year (Yahoo earningsTrend "0y") */
+  forwardEps?: number | null;
+  /** Number of analysts behind forwardEps */
+  forwardEpsAnalysts?: number | null;
 }
 
 export interface BalanceSheet {

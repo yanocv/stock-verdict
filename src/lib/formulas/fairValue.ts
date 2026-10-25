@@ -4,6 +4,7 @@ import { DEFAULT_ENGINE_PARAMS } from '@/lib/scoring/params';
 import {
   calculateWACC,
   clampBeta,
+  currentEps,
   DEFAULT_EQUITY_RISK_PREMIUM,
   DEFAULT_RISK_FREE_RATE,
   DEFAULT_TERMINAL_GROWTH_RATE,
@@ -25,7 +26,7 @@ export interface FairValueEstimate {
   method: FairValueMethod | null;
   /** Per-share value from the method, before the sanity cap */
   modelValue: number | null;
-  /** EPS × sector fair P/E: the reference for the sanity cap */
+  /** Current EPS (trailing blended with the analyst estimate) × sector fair P/E: the reference for the sanity cap */
   multiplesValue: number | null;
   /** 'capped' when modelValue was above `dcf.sanityCap` × multiplesValue */
   adjustment: 'capped' | null;
@@ -85,7 +86,7 @@ export function pbRoeFairValue(input: {
  */
 export function estimateFairValue(input: {
   overview: Pick<StockOverview, 'sector' | 'sharesOutstanding'>;
-  financials: Pick<FinancialMetrics, 'roe' | 'beta' | 'eps'>;
+  financials: Pick<FinancialMetrics, 'roe' | 'beta' | 'eps' | 'forwardEps' | 'forwardEpsAnalysts'>;
   history: Pick<FinancialHistory, 'incomeAnnual' | 'balanceAnnual'> | null | undefined;
   dcf: Pick<DCFAnalysis, 'baseCase' | 'cashFlowBasis' | 'riskFreeRate' | 'currencyMismatch'>;
   benchmarks: Pick<IndustryBenchmarks, 'pe'>;
@@ -109,7 +110,8 @@ export function estimateFairValue(input: {
     modelValue = dcf.baseCase;
   }
 
-  const multiplesValue = financials.eps !== null && financials.eps > 0 ? financials.eps * benchmarks.pe.fair : null;
+  const eps = currentEps(financials);
+  const multiplesValue = eps !== null && eps > 0 ? eps * benchmarks.pe.fair : null;
   if (modelValue === null) {return { ...none, method, multiplesValue };}
 
   const cap = multiplesValue !== null ? multiplesValue * DCF_PARAMS.sanityCap : Infinity;

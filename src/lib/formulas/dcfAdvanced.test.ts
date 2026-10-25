@@ -5,6 +5,8 @@ import {
   runAdvancedDCFForStock,
   riskFreeRateFor,
   selectCashFlowBase,
+  cashConversion,
+  currentEps,
   getCurrencyMismatch,
   projectCashFlows,
   cagr,
@@ -210,7 +212,7 @@ describe('runAdvancedDCFForStock', () => {
       sharesOutstanding: 1_000_000,
       netDebt: 1_500_000,
       beta: 1.2,
-      growthRate: 0.30, // only estimate is 30% EPS growth (clamped to 15% inside)
+      growthRate: shrunk(0.30), // only estimate: 30% EPS growth, clipped to 25%, shrunk halfway to 3%
       riskFreeRate: null,
       currentPrice: 50,
     });
@@ -315,6 +317,13 @@ describe('cagr', () => {
   });
 });
 
+// Expected starting growth for a median estimate g: clipped, then pulled halfway back to long-run growth
+function shrunk(g: number): number {
+  const { growthInputClip, growthShrink, terminalGrowth } = DEFAULT_ENGINE_PARAMS.dcf;
+  const clipped = Math.min(growthInputClip.max, Math.max(growthInputClip.min, g));
+  return terminalGrowth + growthShrink * (clipped - terminalGrowth);
+}
+
 describe('estimateGrowthRate', () => {
   const period = (fields: Record<string, number | null>) => ({ period: '', endDate: '', ...fields });
   const history = {
@@ -323,19 +332,19 @@ describe('estimateGrowthRate', () => {
   };
 
   it('ignores a one-quarter EPS spike via the median', () => {
+    // Median of ~5%, ~6% and 80% (clipped to 25%) ≈ 6%, then shrunk toward 3%
     const g = estimateGrowthRate({ epsGrowth: 80 }, history);
-    expect(g).toBeGreaterThan(0.05);
-    expect(g).toBeLessThan(0.07);
+    expect(g).toBeCloseTo(shrunk(cagr(1000, 1190, 3)!), 10);
   });
 
   it('falls back to EPS growth when there is no usable history', () => {
-    expect(estimateGrowthRate({ epsGrowth: 12 }, null)).toBeCloseTo(0.12, 10);
+    expect(estimateGrowthRate({ epsGrowth: 12 }, null)).toBeCloseTo(shrunk(0.12), 10);
   });
 
   it('skips FCF CAGR when an endpoint is negative', () => {
     const negFcf = { ...history, cashFlowAnnual: [-50, 20, 40, 60].map((v) => period({ freeCashFlow: v })) };
     const g = estimateGrowthRate({ epsGrowth: null }, negFcf);
-    expect(g).toBeCloseTo(cagr(1000, 1190, 3)!, 10);
+    expect(g).toBeCloseTo(shrunk(cagr(1000, 1190, 3)!), 10);
   });
 
   it('needs at least two years between endpoints', () => {
@@ -367,23 +376,42 @@ describe('selectCashFlowBase', () => {
     cashFlowAnnual: fcf.map((v, i) => ({ period: String(2022 + i), endDate: '', freeCashFlow: v })),
     incomeAnnual: ni.map((v, i) => ({ period: String(2022 + i), endDate: '', netIncome: v })),
   });
+  // Current earnings = EPS 10 × 100 shares = 1,000
   const fin = { freeCashFlow: 9_999, eps: 10, roe: 12 };
 
-  it('uses average free cash flow when it is in line with earnings', () => {
-    // Avg FCF 150 vs avg earnings 150 → FCF; the odd TTM 9,999 is ignored
-    expect(selectCashFlowBase(fin, history([100, 200], [140, 160]), 100, 0.03)).toEqual({ basis: 'fcf', amount: 150 });
+  it('values current earnings at the usual cash conversion', () => {
+    // Conversion (100 + 200) ÷ (140 + 160) = 1.0 → 1,000; the odd TTM FCF 9,999 is ignored
+    expect(selectCashFlowBase(fin, history([100, 200], [140, 160]), 100, 0.03)).toEqual({ basis: 'fcf', amount: 1000 });
   });
 
-  it('averages only the most recent years', () => {
-    const base = selectCashFlowBase(fin, history([1, 100, 100, 100, 100], [100, 100, 100, 100, 100]), 100, 0.03);
-    expect(base).toEqual({ basis: 'fcf', amount: 100 });
+  it('does not undervalue a company whose profits just grew', () => {
+    // Old 4-year FCF average would be 50; conversion 200 ÷ 400 = 0.5 × current earnings 1,000 = 500
+    const base = selectCashFlowBase(fin, history([-20, 30, 60, 130], [40, 60, 100, 200]), 100, 0.03);
+    expect(base!.basis).toBe('fcf');
+    expect(base!.amount).toBeCloseTo(500, 6);
+  });
+
+  it('measures conversion only on years that have both figures', () => {
+    // 2022 FCF has no matching net income; 2023–2024 convert at 0.8
+    const h = {
+      cashFlowAnnual: [
+        { period: '2022', endDate: '', freeCashFlow: 5_000 },
+        { period: '2023', endDate: '', freeCashFlow: 80 },
+        { period: '2024', endDate: '', freeCashFlow: 80 },
+      ],
+      incomeAnnual: [
+        { period: '2023', endDate: '', netIncome: 100 },
+        { period: '2024', endDate: '', netIncome: 100 },
+      ],
+    };
+    expect(cashConversion(h)).toBeCloseTo(0.8, 6);
   });
 
   it('switches to earnings after reinvestment when FCF is distorted (finance arm)', () => {
-    // FCF negative, earnings 4,000; payout = 1 − 3% ÷ 12% = 75%
+    // Conversion negative; payout = 1 − 3% ÷ 12% = 75% of current earnings 1,000
     const base = selectCashFlowBase(fin, history([-750, -840, -1560, 180], [2450, 4950, 4770, 3830]), 100, 0.03);
     expect(base!.basis).toBe('earnings');
-    expect(base!.amount).toBeCloseTo(4000 * 0.75, 6);
+    expect(base!.amount).toBeCloseTo(750, 6);
   });
 
   it('switches to earnings when FCF is far above earnings (advance payments)', () => {
@@ -392,16 +420,35 @@ describe('selectCashFlowBase', () => {
 
   it('keeps at least the minimum payout for low-ROE companies', () => {
     const base = selectCashFlowBase({ ...fin, roe: 4 }, history([-10], [100]), 100, 0.03);
-    expect(base!.amount).toBeCloseTo(100 * DEFAULT_ENGINE_PARAMS.dcf.minPayout, 6);
+    expect(base!.amount).toBeCloseTo(1000 * DEFAULT_ENGINE_PARAMS.dcf.minPayout, 6);
   });
 
-  it('returns null when neither cash flow nor earnings is positive', () => {
-    expect(selectCashFlowBase(fin, history([-5], [-1]), 100, 0.03)).toBeNull();
+  it('uses average FCF when earnings are negative, else nothing', () => {
+    const loss = { freeCashFlow: null, eps: -1, roe: null };
+    expect(selectCashFlowBase(loss, history([40, 60], [-5, -1]), 100, 0.03)).toEqual({ basis: 'fcf', amount: 50 });
+    expect(selectCashFlowBase(loss, history([-5], [-1]), 100, 0.03)).toBeNull();
   });
 
-  it('falls back to latest FCF and EPS × shares without history', () => {
-    // EPS 10 × 100 shares = 1,000 earnings; FCF 900 → in line → FCF
+  it('falls back to latest FCF ÷ earnings without history', () => {
+    // FCF 900 ÷ earnings 1,000 = 0.9 → in line → 900
     expect(selectCashFlowBase({ freeCashFlow: 900, eps: 10, roe: 12 }, null, 100, 0.03)).toEqual({ basis: 'fcf', amount: 900 });
+  });
+});
+
+describe('currentEps', () => {
+  const { forecastMinAnalysts } = DEFAULT_ENGINE_PARAMS.dcf;
+
+  it('blends trailing EPS half-and-half with the analyst estimate', () => {
+    expect(currentEps({ eps: 88, forwardEps: 135, forwardEpsAnalysts: 16 })).toBeCloseTo(111.5, 6);
+  });
+
+  it('ignores an estimate from too few analysts', () => {
+    expect(currentEps({ eps: 88, forwardEps: 135, forwardEpsAnalysts: forecastMinAnalysts - 1 })).toBe(88);
+  });
+
+  it('uses trailing EPS alone without an estimate, and the estimate alone without EPS', () => {
+    expect(currentEps({ eps: 88 })).toBe(88);
+    expect(currentEps({ eps: null, forwardEps: 135, forwardEpsAnalysts: 16 })).toBe(135);
   });
 });
 
@@ -413,5 +460,29 @@ describe('runAdvancedDCFForStock with the earnings basis', () => {
     const hugeDebt = runAdvancedDCFForStock(overview, financials, { totalDebt: 1e9, cash: 0 } as BalanceSheet);
     expect(lowDebt.cashFlowBasis).toBe('earnings');
     expect(hugeDebt.baseCase).toBe(lowDebt.baseCase);
+  });
+});
+
+describe('estimateGrowthRate with analyst estimates', () => {
+  it('adds the growth analysts expect this year to the median', () => {
+    // Backward: EPS growth +30% (clipped to 25%). Forward: 182 → 140 = −23% (clipped to −10%)
+    const g = estimateGrowthRate({ epsGrowth: 30, eps: 182, forwardEps: 140, forwardEpsAnalysts: 17 }, null);
+    expect(g).toBeCloseTo(shrunk((0.25 - 0.10) / 2), 6);
+  });
+
+  it('ignores the estimate with too few analysts or no positive EPS', () => {
+    expect(estimateGrowthRate({ epsGrowth: 30, eps: 182, forwardEps: 140, forwardEpsAnalysts: 1 }, null)).toBeCloseTo(shrunk(0.30), 6);
+    expect(estimateGrowthRate({ epsGrowth: 30, eps: -5, forwardEps: 140, forwardEpsAnalysts: 17 }, null)).toBeCloseTo(shrunk(0.30), 6);
+  });
+});
+
+describe('cash conversion above earnings', () => {
+  it('is never credited above 100% of earnings', () => {
+    // Conversion 1.4 is "in line" (≤ 1.5) but counts as 1.0
+    const h = {
+      cashFlowAnnual: [{ period: '2025', endDate: '', freeCashFlow: 140 }],
+      incomeAnnual: [{ period: '2025', endDate: '', netIncome: 100 }],
+    };
+    expect(selectCashFlowBase({ freeCashFlow: null, eps: 10, roe: 12 }, h, 100, 0.03)).toEqual({ basis: 'fcf', amount: 1000 });
   });
 });

@@ -51,6 +51,7 @@ export async function fetchStockData(ticker: string): Promise<YahooStockData> {
       'assetProfile' as const,
       'calendarEvents' as const,
       'recommendationTrend' as const,
+      'earningsTrend' as const,
     ],
   });
 
@@ -163,6 +164,11 @@ export async function fetchStockData(ticker: string): Promise<YahooStockData> {
     capSize: classifyCapSize(marketCap, currency),
   };
 
+  // Analysts' EPS estimate for the current fiscal year ("0y")
+  const currentYearTrend = (result.earningsTrend?.trend ?? []).find((t: any) => t?.period === '0y');
+  const forwardEps = numOrNull(currentYearTrend?.earningsEstimate?.avg);
+  const forwardEpsAnalysts = numOrNull(currentYearTrend?.earningsEstimate?.numberOfAnalysts);
+
   // Build FinancialMetrics
   const financials: FinancialMetrics = {
     eps,
@@ -181,6 +187,8 @@ export async function fetchStockData(ticker: string): Promise<YahooStockData> {
     dividendYield,
     payoutRatio,
     beta,
+    forwardEps,
+    forwardEpsAnalysts,
   };
 
   // Build BalanceSheet

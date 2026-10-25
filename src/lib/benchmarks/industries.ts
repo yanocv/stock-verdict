@@ -61,6 +61,22 @@ const INDUSTRY_BENCHMARKS: Record<string, IndustryBenchmarks> = {
     roe: { poor: 5, average: 12, good: 20 },
     debtToEquity: { low: 0.5, moderate: 1.5, high: 3.0 },
   },
+  // Machinery, heavy industry, trading houses, conglomerates (MHI, KHI, Hitachi)
+  Industrials: {
+    pe: { cheap: 10, fair: 16, expensive: 28 },
+    ps: { cheap: 0.4, fair: 1.0, expensive: 2.5 },
+    operatingMargin: { poor: 3, average: 7, good: 12 },
+    roe: { poor: 5, average: 10, good: 15 },
+    debtToEquity: { low: 0.3, moderate: 0.8, high: 1.5 },
+  },
+  // Chemicals, steel, paper (Shin-Etsu)
+  'Basic Materials': {
+    pe: { cheap: 9, fair: 14, expensive: 24 },
+    ps: { cheap: 0.4, fair: 1.0, expensive: 2.5 },
+    operatingMargin: { poor: 4, average: 9, good: 15 },
+    roe: { poor: 5, average: 9, good: 14 },
+    debtToEquity: { low: 0.3, moderate: 0.8, high: 1.5 },
+  },
   'Consumer Goods': {
     pe: { cheap: 12, fair: 20, expensive: 35 },
     ps: { cheap: 0.8, fair: 1.8, expensive: 4.0 },

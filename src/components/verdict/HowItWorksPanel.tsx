@@ -2,6 +2,11 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Info } from 'lucide-react';
+import { DEFAULT_ENGINE_PARAMS } from '@/lib/scoring/params';
+
+// Weights come from the engine params so this table can't drift from the maths
+const w = DEFAULT_ENGINE_PARAMS.weights;
+const pct = (x: number) => `${Math.round(x * 100)}%`;
 
 export function HowItWorksPanel() {
   return (
@@ -18,7 +23,7 @@ export function HowItWorksPanel() {
         <section>
           <h3 className="font-semibold mb-1">Overall Score (0–10)</h3>
           <p className="text-muted-foreground">
-            The verdict is driven by a weighted composite score across 5 dimensions:
+            The verdict is driven by a weighted composite score across 6 dimensions:
           </p>
           <div className="mt-2 overflow-x-auto">
             <table className="w-full text-xs border-collapse">
@@ -31,11 +36,12 @@ export function HowItWorksPanel() {
               </thead>
               <tbody className="text-muted-foreground">
                 {[
-                  ['Financials', '30%', 'ROE, profit margins, EPS growth, free cash flow'],
-                  ['Valuation', '20%', 'P/E, P/S, PEG — is the stock cheap or expensive?'],
-                  ['Health', '20%', 'Current ratio, debt/equity — balance sheet strength'],
-                  ['Technical', '15%', 'Beta, EPS growth trend, revenue growth momentum'],
-                  ['Macro / News', '15%', 'VIX fear index, S&P 500 regime, USD/JPY, news sentiment'],
+                  ['Valuation', pct(w.valuation), 'P/E, P/S, PEG vs sector, and margin of safety to fair value'],
+                  ['Financials', pct(w.financials), 'ROE, profit margins, free cash flow'],
+                  ['Health', pct(w.health), 'Current ratio, debt/equity — balance sheet strength'],
+                  ['Technical', pct(w.technical), 'RSI, price vs 50- and 200-day averages, 52-week position'],
+                  ['Macro', pct(w.macro), 'VIX, S&P 500 and Nikkei trend, USD/JPY'],
+                  ['News', pct(w.news), 'Headline tone (keyword based)'],
                 ].map(([dim, wt, desc]) => (
                   <tr key={dim} className="border-b border-border/40">
                     <td className="py-1 pr-4 font-medium text-foreground">{dim}</td>

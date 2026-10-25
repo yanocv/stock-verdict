@@ -72,7 +72,7 @@ High Expectations means *the price already assumes good news* (risky for new buy
 ### 2.3 Verdict layer — see §3.
 
 ### 2.4 Position layer (new; needs holdings with cost basis)
-HOLD / ADD / REDUCE / EXIT, plus the exit plan from INVESTMENT_PHILOSOPHY (tranches at fair value / +10% / +20%, stop-loss, thesis-break triggers, review date). A high Expectations score brings the first tranche forward. Wording is always about the user's own rules ("your 10% trailing stop was hit"), never "sell now".
+HOLD / ADD / REDUCE / EXIT, plus the exit plan: take 25% at fair value, half of the rest at fair value + 10%, and the remainder rides the user's trailing stop (owner decision §10.4.2, replacing the old third tranche at +20%); stop-loss, thesis-break triggers, review date. A high Expectations score brings the first tranche forward. Wording is always about the user's own rules ("your 10% trailing stop was hit"), never "sell now".
 
 ### 2.5 Portfolio layer (new)
 Position size from fixed risk per trade (1–2% of portfolio to the stop), rounded down to 100-share lots for Japan; theme cap ~30%; regime multiplier on size.
@@ -92,7 +92,7 @@ Each step can only **lower** the verdict proposed by the step before. Every appl
 | 3 | Value decision | BUY needs Value ≥ `value.buyMin` **and** margin of safety ≥ `mos.base + regime bonus` | Otherwise WAIT; Value < `value.avoidMax` → AVOID |
 | 4 | Market caps | marginRisk < 3 → at most WAIT; < 2 → AVOID. Risk-off → mode 1 BUY needs Quality ≥ `quality.strong` | Cap |
 | 5 | Expectations caps | Expectations ≥ `expectations.cap` (priced-in / overheating) | At most **WAIT** ("good business, price already assumes it") |
-| 6 | Reward-to-risk | (fair value − price) / (price − stop) < 2 | At most **WAIT** |
+| 6 | Reward-to-risk | (base value − price) ÷ (price − downside) < 2, where downside = the bear-case value (§10.2 P12), or the stop if the bear value is above the price (owner decision §10.4.3) | At most **WAIT** |
 | 7 | Stability | Hysteresis (§5) against the last published verdict for this ticker | Keep previous verdict inside the band |
 
 The mode decides how Quality and Value combine at step 3:
@@ -212,6 +212,7 @@ Owner goal: one model that uses everything that matters (company numbers, valuat
 - P1–P3 fixed 2026-10-25: trend-based regime (`regime` params); MoS bonus applied via `requiredMosBonus`; live US 10Y and MoF JGB 10Y in the DCF (`dcf.riskFreeRateJp` fallback); terminal growth capped at the risk-free rate.
 - P8 fixed 2026-10-25 (`formulas/fairValue.ts`): cash-flow base averaged over 4 years; earnings after reinvestment when FCF ÷ earnings is outside 0.5–1.5 (no net-debt subtraction on that basis); P/B–ROE for Financial Services; beta floor 0.8; fair value capped at 1.5 × EPS × sector fair P/E (cap only; raising invented bargains, e.g. SoftBank). Details in [CALCULATIONS.md](CALCULATIONS.md) §5.
 - P9 fixed 2026-10-25: `resolveSectorKey` maps Yahoo industry first, then sector, then sector alias, for both tables. Industrials and Basic Materials still have no own set.
+- P8 revised 2026-10-25 after the owner flagged MHI (¥1,892 looked too low): cash flow now starts from current earnings (trailing EPS blended 50/50 with the analysts' current-year estimate, ≥ 3 analysts) × usual cash conversion, instead of a 4-year FCF average; analysts' expected growth joins the growth median; Industrials and Basic Materials bands added; verdict decided on the displayed (rounded) score. MHI → ¥2,669.
 - P10 open.
 - Data to verify: Yahoo data for 8766.T (Tokio Marine) looked inconsistent on 2026-10-25 (price ¥572, 28.2 B shares).
 
@@ -250,14 +251,9 @@ Tax doesn't make a stock better or worse, so it stays out of BUY / WAIT / AVOID.
 4. **Against overfitting:** few parameters, fit on one period and check on a later one, prefer rules with outside evidence (value, quality, momentum, revisions).
 5. **Success bar** (proposal): BUY basket beats the benchmark by ≥ 2 pt/year after costs and tax over rolling 3-year windows, with max drawdown no worse than the index.
 
-### 9.5 Proposed order (replaces §7 steps 2–5 once approved)
+### 9.5 Order
 
-1. ~~**Fix P1–P3, P8, P9**~~ (done 2026-10-25). Then P10 (equity from statement history) and benchmark sets for Industrials and Basic Materials.
-2. Verdict log (storage still open), so forward testing starts early.
-3. Backtest harness with price-only signals.
-4. Quality / Value / Expectations split + gates 0–3 behind a flag (§3), with revisions, FX sensitivity, own-history P/E.
-5. Point-in-time fundamentals source and the fundamental backtest.
-6. Gates 4–7, position layer (incl. tax), portfolio layer.
+Superseded by the plan in **§10.3**, which merges this list with the principles in §10.
 
 ### 9.6 Owner decisions (2026-10-25)
 1. **Approved:** factor map (9.2) and order (9.5). Start with P1–P3.
@@ -265,3 +261,57 @@ Tax doesn't make a stock better or worse, so it stays out of BUY / WAIT / AVOID.
 3. **Home currency:** JPY. Show US stock returns in yen.
 4. **Japan first.** US data (EDGAR) and US-specific work wait until Japan works. Source for point-in-time Japanese fundamentals still to choose (J-Quants or other).
 5. **Success bar** (left to Claude): Japan BUY basket beats **TOPIX total return** by ≥ 2 pt/year after costs over rolling 3-year windows, with max drawdown no worse than TOPIX. Tax is ~0 inside NISA, so measure before tax first and check the taxable case separately.
+
+---
+
+## 10. Investing principles and the plan (2026-10-25)
+
+The owner adopted the core lessons of *The Intelligent Investor* (Graham) and *The Psychology of Money* (Housel). In one sentence: **you don't need to predict every outcome; buy only when the plausible reward clearly outweighs the plausible loss, and make sure no single mistake can do lasting damage.** This section checks each principle against the model and turns the gaps into plan items. It describes what to build; nothing in §10 is built unless marked done.
+
+### 10.1 Principles vs the model
+
+| # | Principle | Already in the model | Gap |
+|---|---|---|---|
+| 1 | **Conservative value** (Graham): estimate what a business is worth cautiously, not optimistically | Cash conversion capped at 100%, growth inputs clipped and shrunk halfway to long-run growth, beta floor 0.8, sanity cap 1.5 × EPS × sector P/E ([CALCULATIONS.md](CALCULATIONS.md) §5) | Cost of equity for Japan (JGB 2.9% + 0.8 × 5.5% = 7.3%) is below what the market demands (Toyota trades at ~9× earnings); the cap still binds for Toyota and Hitachi. One number is shown as if certain. |
+| 2 | **Margin of safety**: pay well below that value, to leave room for error | MoS steps in the valuation score, regime bonus (+5 / +10 pt), entry at 70–75% of fair value | Required discount is the same whether the value is solid or shaky (earnings basis, capped value, missing data). |
+| 3 | **A good company is not a good investment at every price** | Quality and value are separate sub-scores | They are averaged together, so great quality can carry an overpriced stock (and the reverse). Gates 2–3 (§3) fix this; not built. |
+| 4 | **Mr. Market**: don't follow the market's mood; wait for a sensible price | Market regime (§9 P1–P2); overheating and "priced-in" caps planned (§3 gate 5) | Expectations score not built. |
+| 5 | **Upside vs downside, not prediction**: compare plausible gain with plausible loss; never treat made-up probabilities as precise | Design shows "Upside vs downside 2.4 : 1"; gate 6 (§3) planned with the stop-loss as the downside | No bear-case value: downside is only the user's stop. |
+| 6 | **Survival first** (Housel): no single loss may wipe you out | Stops and theme cap in the design (S-05); portfolio layer planned (§2.5: 1–2% risk per position, theme cap ~30%) | Not built. |
+| 7 | **Judge decisions, not outcomes**: a good decision can lose money, a lucky one can win | Verdict log planned (inputs, scores, verdict) | The log should also store the parameter version and reasons, so a verdict can be reviewed on what was known then. |
+| 8 | **Tails**: a few big winners drive results; you can be wrong often and still do well | Success bar is basket return vs TOPIX (§9.6.5), not hit rate | Exit plan sells everything by fair value + 20% (design S-02/S-05), which caps the winners that make the result. |
+
+**Deliberately not adopted:** an expected-value calculator with user- or model-chosen probabilities (bull 30% / base 40% / bear 30%). Both books warn that the odds are never known precisely; the app shows **ranges and ratios**, not probability-weighted returns that look more certain than they are.
+
+### 10.2 What changes (proposed)
+
+Status: all approved 2026-10-25 (§10.4). Not built yet.
+
+- **P11 Japan cost of equity from the market.** Set the Japanese equity risk premium so the cost of equity matches what TOPIX actually implies (earnings yield + long-run growth), instead of the global 5.5%. Keeps fair values conservative where low JGB yields and low betas make everything look cheap. *(Principle 1)*
+- **P12 Bear / base / bull values.** From the existing sensitivity grid: **bear** = discount rate +1 pt and growth −2 pt (and the earnings basis if FCF is shaky), **base** = today's value, **bull** = the opposite. Show the range on S-02 ("Fair value ¥2,400 – ¥3,000"), which the design already expects. *(1, 5)*
+- **P13 Reward-to-risk gate.** BUY needs (base − price) ÷ (price − bear) ≥ 2, alongside the stop-loss version of gate 6. If the bear value is above the price, the downside is the stop. *(5)*
+- **P14 Margin of safety scaled by uncertainty.** +5 pt required discount when the value is on the earnings basis, was capped, or confidence < 50%. *(2)*
+- **Gates 2–3** as already specified (§3): quality floor first, then the value decision. *(3)*
+- **Verdict log = decision journal**: store inputs, scores, reasons, parameter version and data date, so each verdict can be judged on what was known at the time. *(7)*
+- **Exit plan: let the last part run** (approved): take profits in the first two steps as designed, but replace "sell the rest at fair value + 20%" with the user's trailing stop. *(8)*
+- **Portfolio layer** keeps "survival first" concrete: risk per position to the stop ≤ 1–2% of the portfolio, theme cap, max per stock. *(6)*
+
+### 10.3 Plan (replaces §9.5)
+
+| # | Step | Principles | Status |
+|---|---|---|---|
+| 1 | §9 P1–P3, P8, P9; MHI fair-value revision; conservative growth (clip + shrink) and conversion cap | 1, 4 | **Done** 2026-10-25 |
+| 2 | P10: shareholder equity from statement history | — | Next |
+| 3 | P11: Japan cost of equity from TOPIX | 1 | Approved |
+| 4 | P12 + P13 + P14: bear/base/bull values, reward-to-risk gate, uncertainty-scaled margin of safety | 1, 2, 5 | Approved |
+| 5 | Verdict log as decision journal (SQLite, details when started) | 7 | Approved |
+| 6 | Backtest harness, price-only signals first; judge by basket vs TOPIX and drawdown, hit rate as context only | 8 | Planned |
+| 7 | Quality / Value / Expectations split + gates 0–3 behind a flag | 3, 4 | Planned |
+| 8 | Gates 4–7 (overheating, reward-to-risk), position layer with exit plan, portfolio layer | 4, 5, 6, 8 | Planned |
+| 9 | Point-in-time Japanese fundamentals (J-Quants or other) and the fundamental backtest | — | Owner decision later |
+
+### 10.4 Owner decisions (2026-10-25)
+1. **Approved:** P11–P14 (§10.2) and the plan (§10.3). Docs first; source code follows step by step.
+2. **Approved:** exit plan keeps two take-profit steps (fair value: 25%; fair value + 10%: half of the rest); the third step is replaced by the user's trailing stop, so the last part can keep running.
+3. **Approved:** reward-to-risk bar for BUY is **2 : 1**, measured against the bear-case value and against the stop (§3 gate 6).
+4. **Approved in principle:** SQLite for the verdict log; details decided when step 5 starts.

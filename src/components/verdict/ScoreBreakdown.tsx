@@ -1,17 +1,22 @@
 'use client';
 
 import type { VerdictScore } from '@/types';
+import { DEFAULT_ENGINE_PARAMS } from '@/lib/scoring/params';
 
 interface ScoreBreakdownProps {
   scores: VerdictScore;
 }
 
+// Weights come from the engine params so the labels can't drift from the maths
+const pct = (w: number) => `${Math.round(w * 100)}%`;
+const w = DEFAULT_ENGINE_PARAMS.weights;
 const dimensions = [
-  { key: 'financials' as const, label: 'Financials', weight: '30%', color: 'bg-blue-500' },
-  { key: 'valuation' as const, label: 'Valuation', weight: '20%', color: 'bg-purple-500' },
-  { key: 'health' as const, label: 'Health', weight: '20%', color: 'bg-green-500' },
-  { key: 'technical' as const, label: 'Technical', weight: '15%', color: 'bg-orange-500' },
-  { key: 'macro' as const, label: 'Macro', weight: '15%', color: 'bg-red-500' },
+  { key: 'valuation' as const, label: 'Valuation', weight: pct(w.valuation), color: 'bg-purple-500' },
+  { key: 'financials' as const, label: 'Financials', weight: pct(w.financials), color: 'bg-blue-500' },
+  { key: 'health' as const, label: 'Health', weight: pct(w.health), color: 'bg-green-500' },
+  { key: 'technical' as const, label: 'Technical', weight: pct(w.technical), color: 'bg-orange-500' },
+  { key: 'macro' as const, label: 'Macro', weight: pct(w.macro), color: 'bg-red-500' },
+  { key: 'news' as const, label: 'News', weight: pct(w.news), color: 'bg-slate-500' },
 ];
 
 function scoreColor(score: number): string {

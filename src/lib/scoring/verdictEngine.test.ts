@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateVerdict } from './verdictEngine';
+import { DEFAULT_ENGINE_PARAMS } from './params';
 import { DEFAULT_BENCHMARKS } from '@/lib/benchmarks/industries';
 import type { FinancialMetrics, BalanceSheet } from '@/types';
 import type { TechnicalIndicators } from '@/types/technicals';
@@ -559,5 +560,19 @@ describe('fair value given as null', () => {
     const result = generateVerdict({ ...base, dcfFairValuePerShare: null });
     expect(result.fairValue).toBeNull();
     expect(result.suggestedBuyPrice).toBeCloseTo(150 * 0.85, 6); // price-based entry when no fair value
+  });
+});
+
+describe('verdict uses the displayed score', () => {
+  it('a score shown as 4.0 is WAIT, never AVOID', () => {
+    // Every sub-score 3.98 → overall 3.98, displayed 4.0
+    const p = { ...DEFAULT_ENGINE_PARAMS };
+    const r = generateVerdict({
+      financials: strongMetrics, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS,
+      engineParams: { ...p, weights: { valuation: 0, financials: 0, health: 0, technical: 0, macro: 1, news: 0 } },
+      macroScore: 3.98,
+    });
+    expect(r.scores.overall).toBe(4);
+    expect(r.recommendation).toBe('WAIT');
   });
 });

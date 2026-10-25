@@ -16,7 +16,9 @@ import {
   XCircle,
   AlertTriangle,
   Info,
+  Newspaper,
 } from 'lucide-react';
+import { DEFAULT_ENGINE_PARAMS } from '@/lib/scoring/params';
 
 interface VerdictExplanationPanelProps {
   verdict: Verdict;
@@ -27,48 +29,57 @@ interface VerdictExplanationPanelProps {
   };
 }
 
-// Maps each score dimension to icon + label + weight
+// Maps each score dimension to icon + label + weight (weights from the engine
+// params; inputs as in docs/CALCULATIONS.md §6.2)
+const w = DEFAULT_ENGINE_PARAMS.weights;
 const DIMENSIONS: {
-  key: keyof VerdictScore;
+  key: Exclude<keyof VerdictScore, 'overall'>;
   label: string;
   weight: number;
   icon: React.ElementType;
   description: string;
 }[] = [
   {
-    key: 'financials',
-    label: 'Financials',
-    weight: 30,
-    icon: DollarSign,
-    description: 'P/E, ROE, margins, EPS, revenue growth',
-  },
-  {
     key: 'valuation',
     label: 'Valuation',
-    weight: 20,
+    weight: Math.round(w.valuation * 100),
     icon: Gauge,
-    description: 'Graham Number, DCF, Lynch Fair Value, margin of safety',
+    description: 'P/E, P/S, PEG vs sector, and margin of safety to fair value',
+  },
+  {
+    key: 'financials',
+    label: 'Financials',
+    weight: Math.round(w.financials * 100),
+    icon: DollarSign,
+    description: 'ROE, net and operating margins, free cash flow',
   },
   {
     key: 'health',
     label: 'Health',
-    weight: 20,
+    weight: Math.round(w.health * 100),
     icon: ShieldCheck,
-    description: 'Altman Z-Score, Piotroski F-Score, debt/liquidity risk',
+    description: 'Current ratio, debt/equity vs sector',
   },
   {
     key: 'technical',
     label: 'Technical',
-    weight: 15,
+    weight: Math.round(w.technical * 100),
     icon: Activity,
-    description: '52-week position, beta, volume trends, SMA/EMA',
+    description: 'RSI, price vs 50- and 200-day averages, 52-week position',
   },
   {
     key: 'macro',
-    label: 'Macro / News',
-    weight: 15,
+    label: 'Macro',
+    weight: Math.round(w.macro * 100),
     icon: Globe,
-    description: 'Interest rates, FX impact, news sentiment, geopolitical risk',
+    description: 'VIX, S&P 500 and Nikkei trend, USD/JPY',
+  },
+  {
+    key: 'news',
+    label: 'News',
+    weight: Math.round(w.news * 100),
+    icon: Newspaper,
+    description: 'Headline tone (keyword based)',
   },
 ];
 
@@ -249,9 +260,7 @@ export function VerdictExplanationPanel({
           <div className="mt-3 pt-3 border-t text-[11px] text-muted-foreground space-y-1">
             <p className="font-medium text-foreground text-xs">How the overall score is calculated:</p>
             <p>
-              ({scores.financials.toFixed(1)} × 30%) + ({scores.valuation.toFixed(1)} × 20%) + (
-              {scores.health.toFixed(1)} × 20%) + ({scores.technical.toFixed(1)} × 15%) + (
-              {scores.macro.toFixed(1)} × 15%) ={' '}
+              {DIMENSIONS.map(({ key, weight }) => `(${scores[key].toFixed(1)} × ${weight}%)`).join(' + ')} ={' '}
               <span className="font-bold text-foreground">{scores.overall.toFixed(2)}/10</span>
             </p>
           </div>

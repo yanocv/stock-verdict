@@ -228,8 +228,10 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     news: newsScore,
   };
 
+  // Decide on the score the user sees (one decimal), so "AVOID 4.0" can't happen
+  const shown = scores.overall;
   const recommendation: VerdictRecommendation =
-    overall > p.verdict.buyMin ? 'BUY' : overall >= p.verdict.avoidMax ? 'WAIT' : 'AVOID';
+    shown > p.verdict.buyMin ? 'BUY' : shown >= p.verdict.avoidMax ? 'WAIT' : 'AVOID';
 
   // Core inputs whose absence makes the verdict less certain.
   // P/E is absent by definition for loss-makers, so only count it when EPS > 0.

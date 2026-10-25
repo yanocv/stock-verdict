@@ -48,6 +48,7 @@ describe('getBenchmarksForSector with Yahoo names', () => {
 
   it('keeps exact sector matches and falls back to the default', () => {
     expect(getBenchmarksForSector('Technology', 'Electronic Components')).toBe(INDUSTRY_BENCHMARKS.Technology);
-    expect(getBenchmarksForSector('Industrials', 'Specialty Industrial Machinery')).toBe(DEFAULT_BENCHMARKS);
+    expect(getBenchmarksForSector('Industrials', 'Specialty Industrial Machinery')).toBe(INDUSTRY_BENCHMARKS.Industrials);
+    expect(getBenchmarksForSector('Utilities', 'Utilities - Regulated Electric')).toBe(DEFAULT_BENCHMARKS);
   });
 });
