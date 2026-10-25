@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest';
 import type { BalanceSheet, FinancialMetrics, StockOverview } from '@/types';
 import {
   runAdvancedDCFForStock,
+  projectCashFlows,
+  cagr,
+  estimateGrowthRate,
+  DEFAULT_GROWTH_RATE,
   calculateWACC,
   dcfWithWACC,
   buildSensitivityTable,
@@ -179,9 +183,9 @@ describe('runAdvancedDCF', () => {
     expect(lowBeta.betaUsed).toBe(0.3);
   });
 
-  it('clamps growth rate above 20%', () => {
+  it('clamps growth rate above 15%', () => {
     const result = runAdvancedDCF({ ...baseParams, growthRate: 0.50 });
-    expect(result.growthRate).toBe(0.20);
+    expect(result.growthRate).toBe(0.15);
   });
 });
 describe('runAdvancedDCFForStock', () => {
@@ -196,7 +200,7 @@ describe('runAdvancedDCFForStock', () => {
       sharesOutstanding: 1_000_000,
       netDebt: 1_500_000,
       beta: 1.2,
-      growthRate: 0.20, // 30% EPS growth clamped to 20%
+      growthRate: 0.30, // only estimate is 30% EPS growth (clamped to 15% inside)
       riskFreeRate: null,
       currentPrice: 50,
     });
@@ -207,5 +211,72 @@ describe('runAdvancedDCFForStock', () => {
   it('returns no base case when free cash flow is missing', () => {
     const result = runAdvancedDCFForStock(overview, { ...financials, freeCashFlow: null }, balanceSheet);
     expect(result.baseCase).toBeNull();
+  });
+});
+
+describe('projectCashFlows', () => {
+  it('fades growth linearly to the terminal rate by the final year', () => {
+    // With no discounting effect isolated: compare against a manual fade
+    const { pvProjected } = projectCashFlows(100, 0.15, 0.10, 0.03, 3);
+    // year growths: 15%, 9%, 3%
+    const f1 = 100 * 1.15;
+    const f2 = f1 * 1.09;
+    const f3 = f2 * 1.03;
+    const expected = f1 / 1.1 + f2 / 1.1 ** 2 + f3 / 1.1 ** 3;
+    expect(pvProjected).toBeCloseTo(expected, 6);
+  });
+
+  it('values high growth far less than compounding it for every year', () => {
+    const faded = projectCashFlows(100, 0.15, 0.10, 0.03, 10);
+    let fcf = 100;
+    let pv = 0;
+    for (let y = 1; y <= 10; y++) {
+      fcf *= 1.15;
+      pv += fcf / 1.1 ** y;
+    }
+    expect(faded.pvProjected).toBeLessThan(pv);
+  });
+});
+
+describe('cagr', () => {
+  it('computes compound annual growth', () => {
+    expect(cagr(100, 121, 2)).toBeCloseTo(0.10, 10);
+  });
+
+  it('returns null for non-positive endpoints', () => {
+    expect(cagr(-100, 121, 2)).toBeNull();
+    expect(cagr(100, 0, 2)).toBeNull();
+  });
+});
+
+describe('estimateGrowthRate', () => {
+  const period = (fields: Record<string, number | null>) => ({ period: '', endDate: '', ...fields });
+  const history = {
+    cashFlowAnnual: [100, 105, 110, 116].map((v) => period({ freeCashFlow: v })), // ~5%/yr
+    incomeAnnual: [1000, 1060, 1120, 1190].map((v) => period({ revenue: v })),   // ~6%/yr
+  };
+
+  it('ignores a one-quarter EPS spike via the median', () => {
+    const g = estimateGrowthRate({ epsGrowth: 80 }, history);
+    expect(g).toBeGreaterThan(0.05);
+    expect(g).toBeLessThan(0.07);
+  });
+
+  it('falls back to EPS growth when there is no usable history', () => {
+    expect(estimateGrowthRate({ epsGrowth: 12 }, null)).toBeCloseTo(0.12, 10);
+  });
+
+  it('skips FCF CAGR when an endpoint is negative', () => {
+    const negFcf = { ...history, cashFlowAnnual: [-50, 20, 40, 60].map((v) => period({ freeCashFlow: v })) };
+    const g = estimateGrowthRate({ epsGrowth: null }, negFcf);
+    expect(g).toBeCloseTo(cagr(1000, 1190, 3)!, 10);
+  });
+
+  it('needs at least two years between endpoints', () => {
+    const short = {
+      cashFlowAnnual: [100, 200].map((v) => period({ freeCashFlow: v })),
+      incomeAnnual: [],
+    };
+    expect(estimateGrowthRate({ epsGrowth: null }, short)).toBe(DEFAULT_GROWTH_RATE);
   });
 });

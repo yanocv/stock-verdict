@@ -81,7 +81,7 @@ export async function GET(
     };
 
     // 6. Advanced DCF with WACC + sensitivity table
-    const dcfAnalysis = runAdvancedDCFForStock(overview, financials, balanceSheet);
+    const dcfAnalysis = runAdvancedDCFForStock(overview, financials, balanceSheet, financialHistory);
 
     // 7. Run the master verdict engine with real macro, news, technicals and DCF
     const verdict = generateVerdict({

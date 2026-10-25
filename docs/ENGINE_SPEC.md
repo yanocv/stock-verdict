@@ -141,7 +141,7 @@ Status: `current` = in code today · `assumed` = proposed, not built · `validat
 | `dcf.riskFree` | 4.5% | **to review** (JGB ≪ UST) | current | single default for both markets | `dcfAdvanced.ts` |
 | `dcf.equityRiskPremium` | 5.5% | 5.5% | current | | `dcfAdvanced.ts` |
 | `dcf.terminalGrowth` | 3% | **to review** | current | | `dcfAdvanced.ts` |
-| `dcf.growthClamp` | −5% … +20% | same | current | | `dcfAdvanced.ts` |
+| `dcf.growthClamp` | −5% … +15%, fading to terminal by year 10 | same | current | median of FCF CAGR, revenue CAGR, EPS growth | `dcfAdvanced.ts` |
 | `quality.min` (mode 1) | 4.5 | 4.0 | assumed | | — |
 | `quality.min` (mode 2) | 7.0 | 6.5 | assumed | | — |
 | `quality.strong` | 7.0 | 6.5 | assumed | risk-off BUY requirement | — |

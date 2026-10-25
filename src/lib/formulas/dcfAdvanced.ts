@@ -1,4 +1,11 @@
-import type { BalanceSheet, DCFAnalysis, FinancialMetrics, SensitivityCell, StockOverview } from '@/types';
+import type {
+  BalanceSheet,
+  DCFAnalysis,
+  FinancialHistory,
+  FinancialMetrics,
+  SensitivityCell,
+  StockOverview,
+} from '@/types';
 
 /**
  * Default equity risk premium (Damodaran global estimate).
@@ -15,6 +22,98 @@ export const DEFAULT_RISK_FREE_RATE = 0.045; // 4.5%
  * Terminal growth rate for the Gordon Growth Model exit.
  */
 export const DEFAULT_TERMINAL_GROWTH_RATE = 0.03; // 3%
+
+/** Growth clamp for the first projection year (growth then fades to terminal). */
+export const MAX_GROWTH_RATE = 0.15;
+export const MIN_GROWTH_RATE = -0.05;
+
+/** Growth assumed when no history or estimate is available. */
+export const DEFAULT_GROWTH_RATE = 0.05;
+
+/**
+ * Present value of projected FCF plus terminal value.
+ *
+ * Growth starts at `growthRate` in year 1 and fades linearly to
+ * `terminalGrowthRate` by the final year, so a high near-term growth rate
+ * isn't compounded for the full projection period.
+ */
+export function projectCashFlows(
+  freeCashFlow: number,
+  growthRate: number,
+  wacc: number,
+  terminalGrowthRate: number,
+  projectionYears: number
+): { pvProjected: number; pvTerminal: number } {
+  let pvProjected = 0;
+  let fcf = freeCashFlow;
+
+  for (let year = 1; year <= projectionYears; year++) {
+    const fade = projectionYears > 1 ? (year - 1) / (projectionYears - 1) : 0;
+    const growth = growthRate + (terminalGrowthRate - growthRate) * fade;
+    fcf = fcf * (1 + growth);
+    pvProjected += fcf / Math.pow(1 + wacc, year);
+  }
+
+  // Terminal value (Gordon Growth Model)
+  const terminalValue = (fcf * (1 + terminalGrowthRate)) / (wacc - terminalGrowthRate);
+  const pvTerminal = terminalValue / Math.pow(1 + wacc, projectionYears);
+
+  return { pvProjected, pvTerminal };
+}
+
+/**
+ * Compound annual growth rate between two positive values `years` apart.
+ * Returns null when either value is non-positive (CAGR is undefined).
+ */
+export function cagr(first: number, last: number, years: number): number | null {
+  if (first <= 0 || last <= 0 || years <= 0) {return null;}
+  return Math.pow(last / first, 1 / years) - 1;
+}
+
+function seriesCagr(values: Array<number | null | undefined>): number | null {
+  const points = values
+    .map((v, i) => ({ v, i }))
+    .filter((p): p is { v: number; i: number } => typeof p.v === 'number' && Number.isFinite(p.v));
+  const first = points[0];
+  const last = points[points.length - 1];
+  // Need at least two years between endpoints to say anything about a trend
+  if (!first || !last || last.i - first.i < 2) {return null;}
+  return cagr(first.v, last.v, last.i - first.i);
+}
+
+/**
+ * Estimates the starting FCF growth rate (decimal) for the DCF.
+ *
+ * Takes the median of the estimates that are available:
+ * - FCF CAGR over the annual history
+ * - Revenue CAGR over the annual history
+ * - Yahoo's earnings growth (latest quarter YoY — noisy on its own)
+ *
+ * The median keeps one outlier (e.g. a rebound quarter) from setting the
+ * valuation. Falls back to DEFAULT_GROWTH_RATE when nothing is available.
+ */
+export function estimateGrowthRate(
+  financials: Pick<FinancialMetrics, 'epsGrowth'>,
+  history?: Pick<FinancialHistory, 'cashFlowAnnual' | 'incomeAnnual'> | null
+): number {
+  const estimates: number[] = [];
+
+  const fcfCagr = seriesCagr(history?.cashFlowAnnual.map((p) => p.freeCashFlow) ?? []);
+  if (fcfCagr !== null) {estimates.push(fcfCagr);}
+
+  const revenueCagr = seriesCagr(history?.incomeAnnual.map((p) => p.revenue) ?? []);
+  if (revenueCagr !== null) {estimates.push(revenueCagr);}
+
+  if (financials.epsGrowth !== null && financials.epsGrowth !== undefined) {
+    estimates.push(financials.epsGrowth / 100);
+  }
+
+  if (estimates.length === 0) {return DEFAULT_GROWTH_RATE;}
+
+  const sorted = [...estimates].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+}
 
 export interface AdvancedDCFParams {
   freeCashFlow: number;
@@ -74,20 +173,12 @@ export function dcfWithWACC(
   if (wacc <= terminalGrowthRate) {return null;}
   if (projectionYears <= 0) {return null;}
 
-  let totalPV = 0;
-  let fcf = freeCashFlow;
-
-  for (let year = 1; year <= projectionYears; year++) {
-    fcf = fcf * (1 + growthRate);
-    totalPV += fcf / Math.pow(1 + wacc, year);
-  }
-
-  // Terminal value (Gordon Growth Model)
-  const terminalValue = (fcf * (1 + terminalGrowthRate)) / (wacc - terminalGrowthRate);
-  const pvTerminal = terminalValue / Math.pow(1 + wacc, projectionYears);
+  const { pvProjected, pvTerminal } = projectCashFlows(
+    freeCashFlow, growthRate, wacc, terminalGrowthRate, projectionYears
+  );
 
   // Enterprise value → equity value: subtract net debt
-  const equityValue = totalPV + pvTerminal - netDebt;
+  const equityValue = pvProjected + pvTerminal - netDebt;
   if (equityValue <= 0) {return null;}
 
   return equityValue / sharesOutstanding;
@@ -161,7 +252,7 @@ export function runAdvancedDCF(params: AdvancedDCFParams): DCFAnalysis {
   const wacc = calculateWACC(riskFreeRate, betaUsed, equityRiskPremium);
 
   // Clamp growth rate
-  const clampedGrowth = Math.min(0.20, Math.max(-0.05, growthRate));
+  const clampedGrowth = Math.min(MAX_GROWTH_RATE, Math.max(MIN_GROWTH_RATE, growthRate));
 
   // Base case DCF
   let pvProjected: number | null = null;
@@ -169,21 +260,12 @@ export function runAdvancedDCF(params: AdvancedDCFParams): DCFAnalysis {
   let baseCase: number | null = null;
 
   if (freeCashFlow > 0 && sharesOutstanding > 0 && wacc > terminalGrowthRate) {
-    let totalPV = 0;
-    let fcf = freeCashFlow;
+    const pv = projectCashFlows(freeCashFlow, clampedGrowth, wacc, terminalGrowthRate, projectionYears);
 
-    for (let year = 1; year <= projectionYears; year++) {
-      fcf = fcf * (1 + clampedGrowth);
-      totalPV += fcf / Math.pow(1 + wacc, year);
-    }
+    pvProjected = Math.round(pv.pvProjected * 100) / 100;
+    pvTerminal = Math.round(pv.pvTerminal * 100) / 100;
 
-    const tv = (fcf * (1 + terminalGrowthRate)) / (wacc - terminalGrowthRate);
-    const tvPV = tv / Math.pow(1 + wacc, projectionYears);
-
-    pvProjected = Math.round(totalPV * 100) / 100;
-    pvTerminal = Math.round(tvPV * 100) / 100;
-
-    const equityValue = totalPV + tvPV - netDebt;
+    const equityValue = pv.pvProjected + pv.pvTerminal - netDebt;
     baseCase = equityValue > 0 ? Math.round((equityValue / sharesOutstanding) * 100) / 100 : null;
   }
 
@@ -224,14 +306,15 @@ export function runAdvancedDCF(params: AdvancedDCFParams): DCFAnalysis {
 export function runAdvancedDCFForStock(
   overview: StockOverview,
   financials: FinancialMetrics,
-  balanceSheet: BalanceSheet
+  balanceSheet: BalanceSheet,
+  history?: FinancialHistory | null
 ): DCFAnalysis {
   return runAdvancedDCF({
     freeCashFlow: financials.freeCashFlow ?? 0,
     sharesOutstanding: overview.sharesOutstanding,
     netDebt: balanceSheet.totalDebt - balanceSheet.cash,
     beta: financials.beta ?? 1.0,
-    growthRate: Math.min(0.20, Math.max(-0.05, (financials.epsGrowth ?? 5) / 100)),
+    growthRate: estimateGrowthRate(financials, history),
     riskFreeRate: null, // will use DEFAULT_RISK_FREE_RATE (4.5%)
     currentPrice: overview.currentPrice,
   });
