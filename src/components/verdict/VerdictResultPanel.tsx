@@ -32,13 +32,13 @@ interface VerdictResultPanelProps {
 }
 
 function verdictBadgeVariant(rec: string) {
-  if (rec === 'BUY') return 'buy' as const;
-  if (rec === 'AVOID') return 'avoid' as const;
+  if (rec === 'BUY') {return 'buy' as const;}
+  if (rec === 'AVOID') {return 'avoid' as const;}
   return 'wait' as const;
 }
 
 function formatCurrency(value: number | null, currency: string): string {
-  if (value === null) return 'N/A';
+  if (value === null) {return 'N/A';}
   return new Intl.NumberFormat(undefined, {
     style: 'currency',
     currency: currency === 'JPY' ? 'JPY' : 'USD',
@@ -48,12 +48,12 @@ function formatCurrency(value: number | null, currency: string): string {
 }
 
 function formatPct(value: number | null): string {
-  if (value === null) return 'N/A';
+  if (value === null) {return 'N/A';}
   return `${value.toFixed(1)}%`;
 }
 
 function formatNum(value: number | null, decimals: number = 2): string {
-  if (value === null) return 'N/A';
+  if (value === null) {return 'N/A';}
   return value.toFixed(decimals);
 }
 

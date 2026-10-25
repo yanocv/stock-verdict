@@ -69,10 +69,10 @@ export function dcfWithWACC(
   netDebt: number,
   projectionYears: number
 ): number | null {
-  if (freeCashFlow <= 0) return null;
-  if (sharesOutstanding <= 0) return null;
-  if (wacc <= terminalGrowthRate) return null;
-  if (projectionYears <= 0) return null;
+  if (freeCashFlow <= 0) {return null;}
+  if (sharesOutstanding <= 0) {return null;}
+  if (wacc <= terminalGrowthRate) {return null;}
+  if (projectionYears <= 0) {return null;}
 
   let totalPV = 0;
   let fcf = freeCashFlow;
@@ -88,7 +88,7 @@ export function dcfWithWACC(
 
   // Enterprise value → equity value: subtract net debt
   const equityValue = totalPV + pvTerminal - netDebt;
-  if (equityValue <= 0) return null;
+  if (equityValue <= 0) {return null;}
 
   return equityValue / sharesOutstanding;
 }

@@ -41,7 +41,7 @@ const RANGES: { label: Range; days: number | null }[] = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function filterByRange(data: ChartDataPoint[], range: Range): ChartDataPoint[] {
-  if (!data.length || range === 'MAX') return data;
+  if (!data.length || range === 'MAX') {return data;}
   const days = RANGES.find((r) => r.label === range)!.days!;
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
@@ -95,13 +95,13 @@ function formatXLabel(iso: string, range: Range): string {
 function formatTooltipDate(iso: string, range: Range): string {
   const d = new Date(iso);
   if (range === '1D')
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
-      ' · ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    {return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+      ' · ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });}
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function pickTicks(data: { date: string }[], count: number): Set<string> {
-  if (data.length <= count) return new Set(data.map((d) => d.date));
+  if (data.length <= count) {return new Set(data.map((d) => d.date));}
   const step = Math.floor(data.length / count);
   return new Set(data.filter((_, i) => i % step === 0).map((d) => d.date));
 }
@@ -109,7 +109,7 @@ function pickTicks(data: { date: string }[], count: number): Set<string> {
 // ─── Tooltip ──────────────────────────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ChartTooltip({ active, payload, currency, baseClose, range }: any) {
-  if (!active || !payload?.length) return null;
+  if (!active || !payload?.length) {return null;}
   const pt: ChartDataPoint = payload[0].payload;
   const delta = pt.close - baseClose;
   const pct = baseClose > 0 ? (delta / baseClose) * 100 : 0;
@@ -147,6 +147,16 @@ export function PriceChart({ data, currency, ticker }: PriceChartProps) {
   const [range, setRange] = useState<Range>('1Y');
   const [hovered, setHovered] = useState<ChartDataPoint | null>(null);
 
+  const onMouseMove = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (s: any) => {
+      const pt = s?.activePayload?.[0]?.payload as ChartDataPoint | undefined;
+      if (pt) {setHovered(pt);}
+    },
+    [],
+  );
+  const onMouseLeave = useCallback(() => setHovered(null), []);
+
   const filtered = filterByRange(data, range);
 
   if (!data.length || !filtered.length) {
@@ -175,16 +185,6 @@ export function PriceChart({ data, currency, ticker }: PriceChartProps) {
   const pad = Math.max((hi - lo) * 0.12, lo * 0.005, 1);
 
   const tickDates = pickTicks(chartData, 6);
-
-  const onMouseMove = useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (s: any) => {
-      const pt = s?.activePayload?.[0]?.payload as ChartDataPoint | undefined;
-      if (pt) setHovered(pt);
-    },
-    [],
-  );
-  const onMouseLeave = useCallback(() => setHovered(null), []);
 
   return (
     <div className="rounded-2xl overflow-hidden bg-slate-950 border border-white/5 shadow-xl">

@@ -12,7 +12,7 @@ interface AnalystConsensusCardProps {
 }
 
 function formatCurrency(value: number | null, currency: string): string {
-  if (value === null) return 'N/A';
+  if (value === null) {return 'N/A';}
   return new Intl.NumberFormat(undefined, {
     style: 'currency',
     currency: currency === 'JPY' ? 'JPY' : 'USD',
@@ -22,7 +22,7 @@ function formatCurrency(value: number | null, currency: string): string {
 }
 
 function ratingBadge(key: string | null) {
-  if (!key) return null;
+  if (!key) {return null;}
   const map: Record<string, { label: string; variant: 'buy' | 'wait' | 'avoid' | 'default' }> = {
     strongBuy: { label: 'Strong Buy', variant: 'buy' },
     buy: { label: 'Buy', variant: 'buy' },
@@ -31,7 +31,7 @@ function ratingBadge(key: string | null) {
     strongSell: { label: 'Strong Sell', variant: 'avoid' },
   };
   const entry = map[key];
-  if (!entry) return <Badge variant="default">{key}</Badge>;
+  if (!entry) {return <Badge variant="default">{key}</Badge>;}
   return <Badge variant={entry.variant}>{entry.label}</Badge>;
 }
 

@@ -18,12 +18,12 @@ export function classifyCapSize(marketCap: number, currency: string = 'USD'): St
   const isJpy = currency.toUpperCase() === 'JPY';
 
   if (isJpy) {
-    if (marketCap >= LARGE_CAP_JPY) return 'large';
-    if (marketCap >= MID_CAP_JPY) return 'mid';
+    if (marketCap >= LARGE_CAP_JPY) {return 'large';}
+    if (marketCap >= MID_CAP_JPY) {return 'mid';}
     return 'small';
   }
 
-  if (marketCap >= LARGE_CAP_THRESHOLD) return 'large';
-  if (marketCap >= MID_CAP_THRESHOLD) return 'mid';
+  if (marketCap >= LARGE_CAP_THRESHOLD) {return 'large';}
+  if (marketCap >= MID_CAP_THRESHOLD) {return 'mid';}
   return 'small';
 }

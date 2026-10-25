@@ -10,8 +10,8 @@ interface NewsPanelProps {
 }
 
 function sentimentBadge(sentiment: NewsArticle['sentiment']) {
-  if (sentiment === 'positive') return <Badge variant="buy" className="text-xs">Positive</Badge>;
-  if (sentiment === 'negative') return <Badge variant="avoid" className="text-xs">Negative</Badge>;
+  if (sentiment === 'positive') {return <Badge variant="buy" className="text-xs">Positive</Badge>;}
+  if (sentiment === 'negative') {return <Badge variant="avoid" className="text-xs">Negative</Badge>;}
   return <Badge variant="wait" className="text-xs">Neutral</Badge>;
 }
 

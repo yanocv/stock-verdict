@@ -3,7 +3,7 @@ import type { MarketDashboardData } from '@/app/api/market/route';
 
 async function fetchMarketData(): Promise<MarketDashboardData> {
   const res = await fetch('/api/market');
-  if (!res.ok) throw new Error('Failed to fetch market data');
+  if (!res.ok) {throw new Error('Failed to fetch market data');}
   return res.json() as Promise<MarketDashboardData>;
 }
 

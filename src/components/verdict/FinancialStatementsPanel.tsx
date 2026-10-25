@@ -14,20 +14,20 @@ interface FinancialStatementsPanelProps {
 // ── Formatters ────────────────────────────────────────────────────────────────
 
 function fmt(value: number | null | undefined, currency: string): string {
-  if (value == null) return '—';
+  if (value == null) {return '—';}
   const abs = Math.abs(value);
   const isJpy = currency === 'JPY';
   const sym = isJpy ? '¥' : '$';
   const neg = value < 0 ? '-' : '';
 
-  if (abs >= 1_000_000_000_000) return `${neg}${sym}${(abs / 1_000_000_000_000).toFixed(2)}T`;
-  if (abs >= 1_000_000_000) return `${neg}${sym}${(abs / 1_000_000_000).toFixed(2)}B`;
-  if (abs >= 1_000_000) return `${neg}${sym}${(abs / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000_000_000_000) {return `${neg}${sym}${(abs / 1_000_000_000_000).toFixed(2)}T`;}
+  if (abs >= 1_000_000_000) {return `${neg}${sym}${(abs / 1_000_000_000).toFixed(2)}B`;}
+  if (abs >= 1_000_000) {return `${neg}${sym}${(abs / 1_000_000).toFixed(2)}M`;}
   return `${neg}${sym}${abs.toLocaleString()}`;
 }
 
 function fmtRaw(value: number | null | undefined, decimals = 2): string {
-  if (value == null) return '—';
+  if (value == null) {return '—';}
   return value.toFixed(decimals);
 }
 

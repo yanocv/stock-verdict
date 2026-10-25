@@ -1,8 +1,8 @@
-/* eslint-disable react-refresh/only-export-components */
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactNode, useEffect, useState } from 'react';
+import type { ReactNode} from 'react';
+import { useEffect, useState } from 'react';
 import { NextIntlClientProvider } from "next-intl";
 import { useLangStore, hydrateLocalePreference } from '../state/langStore';
 import { getMessages } from '../i18n/messages';

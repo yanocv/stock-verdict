@@ -19,10 +19,10 @@ function formatValue(value: number, currency: string): string {
 
 function cellColor(fairValue: number, currentPrice: number): string {
   const mos = (fairValue - currentPrice) / fairValue;
-  if (mos > 0.30) return 'bg-green-100 text-green-800 font-semibold dark:bg-green-900/30 dark:text-green-300';
-  if (mos > 0.10) return 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400';
-  if (mos < -0.20) return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
-  if (mos < -0.05) return 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400';
+  if (mos > 0.30) {return 'bg-green-100 text-green-800 font-semibold dark:bg-green-900/30 dark:text-green-300';}
+  if (mos > 0.10) {return 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400';}
+  if (mos < -0.20) {return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';}
+  if (mos < -0.05) {return 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400';}
   return 'bg-yellow-50 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300';
 }
 

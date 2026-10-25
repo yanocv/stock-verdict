@@ -32,7 +32,7 @@ export default function ScreenerPage() {
         signal: abortRef.current.signal,
       });
 
-      if (!response.body) throw new Error('No response body');
+      if (!response.body) {throw new Error('No response body');}
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -40,19 +40,19 @@ export default function ScreenerPage() {
 
       while (true) {
         const { done: streamDone, value } = await reader.read();
-        if (streamDone) break;
+        if (streamDone) {break;}
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
 
         for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
+          if (!line.startsWith('data: ')) {continue;}
           try {
             const data = JSON.parse(line.slice(6));
             if (data.done) {
               setDone(true);
-              if (data.fatalError) setFatalError(data.fatalError);
+              if (data.fatalError) {setFatalError(data.fatalError);}
             } else {
               setProcessed(data.processed ?? 0);
               const { processed: _p, total: _t, ...result } = data;

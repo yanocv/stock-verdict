@@ -22,10 +22,10 @@ export function scoreMacro(macro: MacroData): number {
   // > 30: high fear / crisis     (score: 2)
   if (macro.vix !== null) {
     let vixScore: number;
-    if (macro.vix < 15) vixScore = 8.5;
-    else if (macro.vix < 20) vixScore = 6.5;
-    else if (macro.vix < 30) vixScore = 4;
-    else vixScore = 2;
+    if (macro.vix < 15) {vixScore = 8.5;}
+    else if (macro.vix < 20) {vixScore = 6.5;}
+    else if (macro.vix < 30) {vixScore = 4;}
+    else {vixScore = 2;}
     factorScore += vixScore * 2; // double weight for VIX
     factorsUsed += 2;
   }
@@ -38,10 +38,10 @@ export function scoreMacro(macro: MacroData): number {
     // If S&P 500 > 4,000 it's generally healthy (post-2020 recovery)
     // > 5,000 = strong bull market
     let sp500Score: number;
-    if (macro.sp500 > 5000) sp500Score = 7;
-    else if (macro.sp500 > 4000) sp500Score = 6;
-    else if (macro.sp500 > 3000) sp500Score = 5;
-    else sp500Score = 3;
+    if (macro.sp500 > 5000) {sp500Score = 7;}
+    else if (macro.sp500 > 4000) {sp500Score = 6;}
+    else if (macro.sp500 > 3000) {sp500Score = 5;}
+    else {sp500Score = 3;}
     factorScore += sp500Score;
     factorsUsed += 1;
   }
@@ -51,10 +51,10 @@ export function scoreMacro(macro: MacroData): number {
   // Moderate range (130–150) = normal
   if (macro.usdJpy !== null) {
     let fxScore: number;
-    if (macro.usdJpy > 160) fxScore = 3;        // extreme JPY weakness
-    else if (macro.usdJpy > 150) fxScore = 5;   // weak JPY
-    else if (macro.usdJpy > 130) fxScore = 6.5; // normal range
-    else fxScore = 7;                            // strong JPY
+    if (macro.usdJpy > 160) {fxScore = 3;}        // extreme JPY weakness
+    else if (macro.usdJpy > 150) {fxScore = 5;}   // weak JPY
+    else if (macro.usdJpy > 130) {fxScore = 6.5;} // normal range
+    else {fxScore = 7;}                            // strong JPY
     factorScore += fxScore;
     factorsUsed += 1;
   }

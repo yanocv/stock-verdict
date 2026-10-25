@@ -17,7 +17,7 @@ function yearLabel(d: Date): string {
 }
 
 function toDateObj(v: unknown): Date {
-  if (v instanceof Date) return v;
+  if (v instanceof Date) {return v;}
   return new Date(v as string);
 }
 

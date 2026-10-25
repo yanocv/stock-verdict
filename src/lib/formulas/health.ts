@@ -41,7 +41,7 @@ export function altmanZScore(params: AltmanZParams): AltmanZResult {
   const D = totalLiabilities !== 0 ? marketCap / totalLiabilities : 0;
   const E = revenue / totalAssets;
 
-  const score = 1.2 * A + 1.4 * B + 3.3 * C + 0.6 * D + 1.0 * E;
+  const score = 1.2 * A + 1.4 * B + 3.3 * C + 0.6 * D + E; // E coefficient is 1.0
 
   let zone: 'safe' | 'grey' | 'distress';
   if (score > 3.0) {

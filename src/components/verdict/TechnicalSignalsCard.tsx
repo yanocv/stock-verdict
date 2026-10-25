@@ -12,7 +12,7 @@ interface TechnicalSignalsCardProps {
 }
 
 function formatPrice(value: number | null, currency: string): string {
-  if (value === null) return 'N/A';
+  if (value === null) {return 'N/A';}
   return new Intl.NumberFormat(undefined, {
     style: 'currency',
     currency: currency === 'JPY' ? 'JPY' : 'USD',

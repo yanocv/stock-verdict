@@ -4,24 +4,24 @@ import { describe, it, expect } from 'vitest';
 // These mirror the functions in VerdictExplanationPanel.tsx
 
 function scoreColor(score: number): string {
-  if (score >= 7) return '#22c55e';
-  if (score >= 4) return '#f59e0b';
+  if (score >= 7) {return '#22c55e';}
+  if (score >= 4) {return '#f59e0b';}
   return '#ef4444';
 }
 
 function scoreLabel(score: number): string {
-  if (score >= 7) return 'Strong';
-  if (score >= 5.5) return 'Good';
-  if (score >= 4) return 'Fair';
-  if (score >= 2.5) return 'Weak';
+  if (score >= 7) {return 'Strong';}
+  if (score >= 5.5) {return 'Good';}
+  if (score >= 4) {return 'Fair';}
+  if (score >= 2.5) {return 'Weak';}
   return 'Poor';
 }
 
 function confidenceLabel(pct: number): string {
-  if (pct >= 80) return 'Very high confidence';
-  if (pct >= 65) return 'High confidence';
-  if (pct >= 50) return 'Moderate confidence';
-  if (pct >= 35) return 'Low confidence';
+  if (pct >= 80) {return 'Very high confidence';}
+  if (pct >= 65) {return 'High confidence';}
+  if (pct >= 50) {return 'Moderate confidence';}
+  if (pct >= 35) {return 'Low confidence';}
   return 'Very low confidence — treat as indicative';
 }
 

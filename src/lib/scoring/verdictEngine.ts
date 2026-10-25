@@ -61,16 +61,16 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   const opMargin = financials.operatingMargin ?? 0;
   const fcf = financials.freeCashFlow ?? 0;
 
-  if (roe > industryBenchmarks.roe.good) financialsScore += 1.5;
-  else if (roe > industryBenchmarks.roe.average) financialsScore += 0.5;
-  else if (roe < industryBenchmarks.roe.poor) financialsScore -= 2;
+  if (roe > industryBenchmarks.roe.good) {financialsScore += 1.5;}
+  else if (roe > industryBenchmarks.roe.average) {financialsScore += 0.5;}
+  else if (roe < industryBenchmarks.roe.poor) {financialsScore -= 2;}
 
-  if (npm > industryBenchmarks.operatingMargin.good) financialsScore += 1;
-  else if (npm < industryBenchmarks.operatingMargin.poor) financialsScore -= 1.5;
+  if (npm > industryBenchmarks.operatingMargin.good) {financialsScore += 1;}
+  else if (npm < industryBenchmarks.operatingMargin.poor) {financialsScore -= 1.5;}
 
-  if (opMargin > industryBenchmarks.operatingMargin.good) financialsScore += 0.5;
-  if (fcf > 0) financialsScore += 1;
-  else financialsScore -= 1.5;
+  if (opMargin > industryBenchmarks.operatingMargin.good) {financialsScore += 0.5;}
+  if (fcf > 0) {financialsScore += 1;}
+  else {financialsScore -= 1.5;}
 
   financialsScore = Math.max(0, Math.min(10, financialsScore));
 
@@ -80,15 +80,15 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   const ps = financials.psRatio ?? Infinity;
   const peg = financials.pegRatio ?? Infinity;
 
-  if (pe !== Infinity && pe < industryBenchmarks.pe.cheap) valuationScore += 2;
-  else if (pe !== Infinity && pe < industryBenchmarks.pe.fair) valuationScore += 0.5;
-  else if (pe !== Infinity && pe > industryBenchmarks.pe.expensive) valuationScore -= 2;
+  if (pe !== Infinity && pe < industryBenchmarks.pe.cheap) {valuationScore += 2;}
+  else if (pe !== Infinity && pe < industryBenchmarks.pe.fair) {valuationScore += 0.5;}
+  else if (pe !== Infinity && pe > industryBenchmarks.pe.expensive) {valuationScore -= 2;}
 
-  if (ps !== Infinity && ps < industryBenchmarks.ps.cheap) valuationScore += 1.5;
-  else if (ps !== Infinity && ps > industryBenchmarks.ps.expensive) valuationScore -= 1.5;
+  if (ps !== Infinity && ps < industryBenchmarks.ps.cheap) {valuationScore += 1.5;}
+  else if (ps !== Infinity && ps > industryBenchmarks.ps.expensive) {valuationScore -= 1.5;}
 
-  if (peg !== Infinity && peg < 1) valuationScore += 1.5;
-  else if (peg !== Infinity && peg > 2) valuationScore -= 1;
+  if (peg !== Infinity && peg < 1) {valuationScore += 1.5;}
+  else if (peg !== Infinity && peg > 2) {valuationScore -= 1;}
 
   // --- DCF Margin of Safety (most important valuation signal) ---
   // If a real per-share fair value is available, incorporate the MoS.
@@ -96,11 +96,11 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   let mosPercent: number | null = null;
   if (dcfFairValuePerShare !== null && dcfFairValuePerShare !== undefined && dcfFairValuePerShare > 0 && price > 0) {
     mosPercent = (dcfFairValuePerShare - price) / dcfFairValuePerShare;
-    if (mosPercent > 0.40) valuationScore += 4;       // >40% below fair value — massive undervaluation
-    else if (mosPercent > 0.25) valuationScore += 2.5; // >25% below fair value — significant discount
-    else if (mosPercent > 0.10) valuationScore += 1;   // >10% below fair value — moderate discount
-    else if (mosPercent < -0.30) valuationScore -= 3;  // >30% above fair value — materially overvalued
-    else if (mosPercent < -0.10) valuationScore -= 1;  // >10% above fair value — moderately overvalued
+    if (mosPercent > 0.40) {valuationScore += 4;}       // >40% below fair value — massive undervaluation
+    else if (mosPercent > 0.25) {valuationScore += 2.5;} // >25% below fair value — significant discount
+    else if (mosPercent > 0.10) {valuationScore += 1;}   // >10% below fair value — moderate discount
+    else if (mosPercent < -0.30) {valuationScore -= 3;}  // >30% above fair value — materially overvalued
+    else if (mosPercent < -0.10) {valuationScore -= 1;}  // >10% above fair value — moderately overvalued
   }
 
   valuationScore = Math.max(0, Math.min(10, valuationScore));
@@ -110,13 +110,13 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   const cr = financials.currentRatio ?? 0;
   const de = financials.debtToEquity ?? Infinity;
 
-  if (cr > 2) healthScore += 1.5;
-  else if (cr > 1) healthScore += 0.5;
-  else healthScore -= 2;
+  if (cr > 2) {healthScore += 1.5;}
+  else if (cr > 1) {healthScore += 0.5;}
+  else {healthScore -= 2;}
 
-  if (de !== Infinity && de < industryBenchmarks.debtToEquity.low) healthScore += 2;
-  else if (de !== Infinity && de < industryBenchmarks.debtToEquity.moderate) healthScore += 0.5;
-  else if (de !== Infinity && de > industryBenchmarks.debtToEquity.high) healthScore -= 2;
+  if (de !== Infinity && de < industryBenchmarks.debtToEquity.low) {healthScore += 2;}
+  else if (de !== Infinity && de < industryBenchmarks.debtToEquity.moderate) {healthScore += 0.5;}
+  else if (de !== Infinity && de > industryBenchmarks.debtToEquity.high) {healthScore -= 2;}
 
   healthScore = Math.max(0, Math.min(10, healthScore));
 
@@ -128,35 +128,35 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
 
   if (technicalIndicators) {
     // RSI signal
-    if (technicalIndicators.rsiSignal === 'oversold')      technicalScore += 2;    // potential bounce
-    else if (technicalIndicators.rsiSignal === 'overbought') technicalScore -= 1.5; // extended, risk of pullback
+    if (technicalIndicators.rsiSignal === 'oversold')      {technicalScore += 2;}    // potential bounce
+    else if (technicalIndicators.rsiSignal === 'overbought') {technicalScore -= 1.5;} // extended, risk of pullback
 
     // Trend: price vs SMA200 (primary trend direction)
-    if (technicalIndicators.trendVsSma200 === 'above')      technicalScore += 1.5;  // uptrend confirmed
-    else if (technicalIndicators.trendVsSma200 === 'below') technicalScore -= 1.5;  // downtrend
+    if (technicalIndicators.trendVsSma200 === 'above')      {technicalScore += 1.5;}  // uptrend confirmed
+    else if (technicalIndicators.trendVsSma200 === 'below') {technicalScore -= 1.5;}  // downtrend
 
     // Trend: price vs SMA50 (near-term momentum)
-    if (technicalIndicators.trendVsSma50 === 'above')       technicalScore += 1;    // near-term bullish
-    else if (technicalIndicators.trendVsSma50 === 'below')  technicalScore -= 0.5;
+    if (technicalIndicators.trendVsSma50 === 'above')       {technicalScore += 1;}    // near-term bullish
+    else if (technicalIndicators.trendVsSma50 === 'below')  {technicalScore -= 0.5;}
 
     // 52-week position
     const pos = technicalIndicators.fiftyTwoWeekPosition;
     if (pos !== null) {
-      if (pos < 20)  technicalScore += 1;   // near 52wk low — potential value entry
-      else if (pos > 90) technicalScore -= 1; // near 52wk high — limited upside
+      if (pos < 20)  {technicalScore += 1;}   // near 52wk low — potential value entry
+      else if (pos > 90) {technicalScore -= 1;} // near 52wk high — limited upside
     }
   } else {
     // Fallback: fundamental proxies when no price history is available
     const beta = financials.beta ?? 1;
-    if (beta > 0 && beta < 1.2) technicalScore += 1;
-    else if (beta > 2)           technicalScore -= 1.5;
+    if (beta > 0 && beta < 1.2) {technicalScore += 1;}
+    else if (beta > 2)           {technicalScore -= 1.5;}
 
-    if (epsGrowth > 15)      technicalScore += 2;
-    else if (epsGrowth > 5)  technicalScore += 0.5;
-    else if (epsGrowth < 0)  technicalScore -= 2;
+    if (epsGrowth > 15)      {technicalScore += 2;}
+    else if (epsGrowth > 5)  {technicalScore += 0.5;}
+    else if (epsGrowth < 0)  {technicalScore -= 2;}
 
-    if (revenueGrowth > 10)  technicalScore += 1;
-    else if (revenueGrowth < 0) technicalScore -= 1;
+    if (revenueGrowth > 10)  {technicalScore += 1;}
+    else if (revenueGrowth < 0) {technicalScore -= 1;}
   }
 
   technicalScore = Math.max(0, Math.min(10, technicalScore));
@@ -223,11 +223,11 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   const bullish: string[] = [];
   const bearish: string[] = [];
 
-  if (roe > industryBenchmarks.roe.good) bullish.push(`Strong ROE of ${roe.toFixed(1)}%`);
-  if (fcf > 0) bullish.push('Positive free cash flow');
-  if (peg !== Infinity && peg < 1) bullish.push(`PEG ratio of ${peg.toFixed(2)} indicates undervaluation`);
-  if (cr > 2) bullish.push(`Strong liquidity with current ratio of ${cr.toFixed(2)}`);
-  if (epsGrowth > 10) bullish.push(`EPS growing at ${epsGrowth.toFixed(1)}%`);
+  if (roe > industryBenchmarks.roe.good) {bullish.push(`Strong ROE of ${roe.toFixed(1)}%`);}
+  if (fcf > 0) {bullish.push('Positive free cash flow');}
+  if (peg !== Infinity && peg < 1) {bullish.push(`PEG ratio of ${peg.toFixed(2)} indicates undervaluation`);}
+  if (cr > 2) {bullish.push(`Strong liquidity with current ratio of ${cr.toFixed(2)}`);}
+  if (epsGrowth > 10) {bullish.push(`EPS growing at ${epsGrowth.toFixed(1)}%`);}
 
   // DCF margin of safety reasons
   if (mosPercent !== null) {
@@ -245,11 +245,11 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     bullish.push('Current price already below our suggested entry level');
   }
 
-  if (fcf <= 0) bearish.push('Negative or zero free cash flow');
-  if (de !== Infinity && de > industryBenchmarks.debtToEquity.high) bearish.push(`High debt/equity ratio of ${de.toFixed(2)}`);
-  if (cr < 1) bearish.push(`Low current ratio of ${cr.toFixed(2)} — liquidity risk`);
-  if (pe !== Infinity && pe > industryBenchmarks.pe.expensive) bearish.push(`P/E of ${pe.toFixed(1)} may be overvalued`);
-  if (epsGrowth < 0) bearish.push(`EPS declining at ${epsGrowth.toFixed(1)}%`);
+  if (fcf <= 0) {bearish.push('Negative or zero free cash flow');}
+  if (de !== Infinity && de > industryBenchmarks.debtToEquity.high) {bearish.push(`High debt/equity ratio of ${de.toFixed(2)}`);}
+  if (cr < 1) {bearish.push(`Low current ratio of ${cr.toFixed(2)} — liquidity risk`);}
+  if (pe !== Infinity && pe > industryBenchmarks.pe.expensive) {bearish.push(`P/E of ${pe.toFixed(1)} may be overvalued`);}
+  if (epsGrowth < 0) {bearish.push(`EPS declining at ${epsGrowth.toFixed(1)}%`);}
 
   const lynchCategory = classifyLynchCategory({
     epsGrowthRate: epsGrowth,

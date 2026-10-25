@@ -41,13 +41,13 @@ export async function GET() {
     const indices: MarketIndex[] = quotes
       .map((result, i) => {
         const meta = SYMBOLS[i]!;
-        if (result.status === 'rejected' || !result.value) return null;
+        if (result.status === 'rejected' || !result.value) {return null;}
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const q: any = result.value;
         const price = q.regularMarketPrice ?? q.price ?? 0;
         const change = q.regularMarketChange ?? 0;
         const changePct = q.regularMarketChangePercent ?? 0;
-        if (!price) return null;
+        if (!price) {return null;}
         return {
           symbol: meta.symbol,
           name: meta.name,

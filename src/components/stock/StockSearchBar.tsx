@@ -50,10 +50,10 @@ export function StockSearchBar({ onSearch, isLoading = false }: StockSearchBarPr
         }
       })
       .catch(() => {
-        if (!cancelled) setSuggestions([]);
+        if (!cancelled) {setSuggestions([]);}
       })
       .finally(() => {
-        if (!cancelled) setIsFetching(false);
+        if (!cancelled) {setIsFetching(false);}
       });
     return () => { cancelled = true; };
   }, [debouncedQuery]);
@@ -71,7 +71,7 @@ export function StockSearchBar({ onSearch, isLoading = false }: StockSearchBarPr
 
   const submit = useCallback((ticker: string) => {
     const upper = ticker.trim().toUpperCase();
-    if (!upper) return;
+    if (!upper) {return;}
     setQuery(upper);
     setShowDropdown(false);
     onSearch(upper);
@@ -79,7 +79,7 @@ export function StockSearchBar({ onSearch, isLoading = false }: StockSearchBarPr
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (!showDropdown) {
-      if (e.key === 'Enter') submit(query);
+      if (e.key === 'Enter') {submit(query);}
       return;
     }
     if (e.key === 'ArrowDown') {
@@ -109,7 +109,7 @@ export function StockSearchBar({ onSearch, isLoading = false }: StockSearchBarPr
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             onFocus={() => {
-              if (suggestions.length > 0) setShowDropdown(true);
+              if (suggestions.length > 0) {setShowDropdown(true);}
             }}
             placeholder={t('searchPlaceholder')}
             className="pr-8"

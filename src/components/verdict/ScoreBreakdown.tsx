@@ -15,8 +15,8 @@ const dimensions = [
 ];
 
 function scoreColor(score: number): string {
-  if (score >= 7) return 'text-green-600';
-  if (score >= 4) return 'text-yellow-600';
+  if (score >= 7) {return 'text-green-600';}
+  if (score >= 4) {return 'text-yellow-600';}
   return 'text-red-600';
 }
 

@@ -8,7 +8,7 @@ import type { ChartDataPoint } from '@/types';
  * @returns RSI value 0–100, or null if insufficient data.
  */
 export function calculateRSI(closes: number[], period = 14): number | null {
-  if (closes.length < period + 1) return null;
+  if (closes.length < period + 1) {return null;}
 
   // Calculate price changes
   const changes: number[] = [];
@@ -42,7 +42,7 @@ export function calculateRSI(closes: number[], period = 14): number | null {
     avgLoss = (avgLoss * (period - 1) + loss) / period;
   }
 
-  if (avgLoss === 0) return 100;
+  if (avgLoss === 0) {return 100;}
 
   const rs = avgGain / avgLoss;
   const rsi = 100 - 100 / (1 + rs);
@@ -53,8 +53,8 @@ export function calculateRSI(closes: number[], period = 14): number | null {
  * Returns 'overbought' (RSI > 70), 'oversold' (RSI < 30), or 'neutral'.
  */
 export function classifyRSI(rsi: number): 'overbought' | 'oversold' | 'neutral' {
-  if (rsi >= 70) return 'overbought';
-  if (rsi <= 30) return 'oversold';
+  if (rsi >= 70) {return 'overbought';}
+  if (rsi <= 30) {return 'oversold';}
   return 'neutral';
 }
 
@@ -63,7 +63,7 @@ export function classifyRSI(rsi: number): 'overbought' | 'oversold' | 'neutral' 
  * Returns null if there are fewer values than `period`.
  */
 export function calculateSMA(values: number[], period: number): number | null {
-  if (values.length < period) return null;
+  if (values.length < period) {return null;}
   const slice = values.slice(values.length - period);
   return slice.reduce((a, b) => a + b, 0) / period;
 }

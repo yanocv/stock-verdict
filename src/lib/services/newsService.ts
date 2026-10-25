@@ -32,10 +32,10 @@ function scoreTitle(title: string): number {
   let score = 0;
 
   for (const word of BULLISH_KEYWORDS) {
-    if (lower.includes(word)) score += 0.2;
+    if (lower.includes(word)) {score += 0.2;}
   }
   for (const word of BEARISH_KEYWORDS) {
-    if (lower.includes(word)) score -= 0.2;
+    if (lower.includes(word)) {score -= 0.2;}
   }
 
   return Math.max(-1, Math.min(1, score));
@@ -84,7 +84,7 @@ export async function fetchStockNews(ticker: string): Promise<NewsArticle[]> {
  * Higher score = more positive news sentiment.
  */
 export function scoreNews(articles: NewsArticle[]): number {
-  if (articles.length === 0) return 5; // neutral when no news
+  if (articles.length === 0) {return 5;} // neutral when no news
 
   const total = articles.reduce((sum, a) => sum + (a.sentimentScore ?? 0), 0);
   const avg = total / articles.length;

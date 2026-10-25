@@ -11,12 +11,12 @@ interface MacroCalendarPanelProps {
 }
 
 function formatMacroValue(value: number | null, prefix: string = '', suffix: string = ''): string {
-  if (value === null) return '—';
+  if (value === null) {return '—';}
   return `${prefix}${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${suffix}`;
 }
 
 function formatDate(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) {return '—';}
   try {
     return new Intl.DateTimeFormat(undefined, {
       year: 'numeric',
@@ -29,15 +29,15 @@ function formatDate(iso: string | null): string {
 }
 
 function daysUntil(iso: string | null): string {
-  if (!iso) return '';
+  if (!iso) {return '';}
   const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-  if (diff < 0) return '(past)';
-  if (diff === 0) return '(today)';
+  if (diff < 0) {return '(past)';}
+  if (diff === 0) {return '(today)';}
   return `(in ${diff}d)`;
 }
 
 function VixLabel({ vix }: { vix: number | null }) {
-  if (vix === null) return <span className="text-muted-foreground">—</span>;
+  if (vix === null) {return <span className="text-muted-foreground">—</span>;}
   const label = vix < 15 ? '😌 Calm' : vix < 20 ? '😐 Normal' : vix < 30 ? '😟 Elevated' : '😱 Fear';
   const color = vix < 15 ? 'text-green-600' : vix < 20 ? 'text-yellow-600' : 'text-red-600';
   return (

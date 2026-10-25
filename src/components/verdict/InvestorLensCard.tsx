@@ -22,8 +22,8 @@ const lensName: Record<string, string> = {
 };
 
 function verdictBadgeVariant(rec: string) {
-  if (rec === 'BUY') return 'buy' as const;
-  if (rec === 'AVOID') return 'avoid' as const;
+  if (rec === 'BUY') {return 'buy' as const;}
+  if (rec === 'AVOID') {return 'avoid' as const;}
   return 'wait' as const;
 }
 

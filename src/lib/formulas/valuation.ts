@@ -5,7 +5,7 @@
 
 /** Graham Number: √(22.5 × EPS × BVPS). Returns null if EPS or BVPS <= 0 */
 export function grahamNumber(eps: number, bookValuePerShare: number): number | null {
-  if (eps <= 0 || bookValuePerShare <= 0) return null;
+  if (eps <= 0 || bookValuePerShare <= 0) {return null;}
   return Math.sqrt(22.5 * eps * bookValuePerShare);
 }
 
@@ -19,14 +19,14 @@ export function grahamIntrinsicValue(
   growthRate: number,
   currentYield: number
 ): number | null {
-  if (eps <= 0) return null;
-  if (currentYield <= 0) return null;
+  if (eps <= 0) {return null;}
+  if (currentYield <= 0) {return null;}
   return (eps * (8.5 + 2 * growthRate) * 4.4) / currentYield;
 }
 
 /** Lynch Fair Value: EPS × EPS Growth Rate (PEG of 1). Returns null if EPS or epsGrowthRate <= 0 */
 export function lynchFairValue(eps: number, epsGrowthRate: number): number | null {
-  if (eps <= 0 || epsGrowthRate <= 0) return null;
+  if (eps <= 0 || epsGrowthRate <= 0) {return null;}
   return eps * epsGrowthRate;
 }
 
@@ -54,10 +54,10 @@ export function dcfFairValue(params: DCFParams): number | null {
     projectionYears,
   } = params;
 
-  if (freeCashFlow <= 0) return null;
-  if (sharesOutstanding <= 0) return null;
-  if (discountRate <= terminalGrowthRate) return null;
-  if (projectionYears <= 0) return null;
+  if (freeCashFlow <= 0) {return null;}
+  if (sharesOutstanding <= 0) {return null;}
+  if (discountRate <= terminalGrowthRate) {return null;}
+  if (projectionYears <= 0) {return null;}
 
   let totalPV = 0;
   let fcf = freeCashFlow;
@@ -84,9 +84,9 @@ export function dividendDiscountModel(
   requiredReturn: number,
   growthRate: number
 ): number | null {
-  if (dividend <= 0) return null;
-  if (requiredReturn <= 0) return null;
-  if (requiredReturn <= growthRate) return null;
+  if (dividend <= 0) {return null;}
+  if (requiredReturn <= 0) {return null;}
+  if (requiredReturn <= growthRate) {return null;}
   return dividend / (requiredReturn - growthRate);
 }
 
@@ -95,6 +95,6 @@ export function dividendDiscountModel(
  * A positive value indicates the stock is trading below intrinsic value.
  */
 export function calculateMarginOfSafety(intrinsicValue: number, currentPrice: number): number {
-  if (intrinsicValue === 0) return 0;
+  if (intrinsicValue === 0) {return 0;}
   return ((intrinsicValue - currentPrice) / intrinsicValue) * 100;
 }

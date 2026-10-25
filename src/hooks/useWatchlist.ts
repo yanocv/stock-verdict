@@ -30,7 +30,7 @@ const STORAGE_KEY = 'sv-watchlist-v1';
 function loadFromStorage(): WatchlistEntry[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
+    if (!raw) {return [];}
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -57,7 +57,7 @@ export const useWatchlistStore = create<WatchlistState>((set, get) => ({
 
   add: (entry) => {
     const exists = get().entries.some((e) => e.ticker === entry.ticker);
-    if (exists) return;
+    if (exists) {return;}
     const newEntry: WatchlistEntry = {
       ...entry,
       addedAt: new Date().toISOString(),
@@ -93,7 +93,7 @@ export function useWatchlist() {
   const { entries, hydrated, add, remove, update, has, _hydrate } = useWatchlistStore();
 
   useEffect(() => {
-    if (!hydrated) _hydrate();
+    if (!hydrated) {_hydrate();}
   }, [hydrated, _hydrate]);
 
   const toggle = useCallback(

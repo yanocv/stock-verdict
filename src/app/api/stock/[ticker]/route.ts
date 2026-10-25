@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest} from 'next/server';
+import { NextResponse } from 'next/server';
 import { fetchStockData } from '@/lib/services/yahooFinance';
 import { fetchMacroData } from '@/lib/services/macroService';
 import { fetchStockNews, scoreNews } from '@/lib/services/newsService';

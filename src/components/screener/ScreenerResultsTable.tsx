@@ -10,15 +10,15 @@ interface Props {
 }
 
 function scoreColor(score: number): string {
-  if (score > 7) return 'text-green-600 dark:text-green-400';
-  if (score >= 4) return 'text-yellow-600 dark:text-yellow-400';
+  if (score > 7) {return 'text-green-600 dark:text-green-400';}
+  if (score >= 4) {return 'text-yellow-600 dark:text-yellow-400';}
   return 'text-red-600 dark:text-red-400';
 }
 
 function upsideIcon(upside: number | null) {
-  if (upside === null) return <Minus className="w-3 h-3 text-muted-foreground" />;
-  if (upside > 5)  return <TrendingUp  className="w-3 h-3 text-green-500" />;
-  if (upside < -5) return <TrendingDown className="w-3 h-3 text-red-500" />;
+  if (upside === null) {return <Minus className="w-3 h-3 text-muted-foreground" />;}
+  if (upside > 5)  {return <TrendingUp  className="w-3 h-3 text-green-500" />;}
+  if (upside < -5) {return <TrendingDown className="w-3 h-3 text-red-500" />;}
   return <Minus className="w-3 h-3 text-muted-foreground" />;
 }
 
@@ -28,11 +28,11 @@ export function ScreenerResultsTable({ results }: Props) {
     const order = { BUY: 0, WAIT: 1, AVOID: 2 };
     const oa = a.error ? 3 : (order[a.recommendation] ?? 2);
     const ob = b.error ? 3 : (order[b.recommendation] ?? 2);
-    if (oa !== ob) return oa - ob;
+    if (oa !== ob) {return oa - ob;}
     return b.score - a.score;
   });
 
-  if (sorted.length === 0) return null;
+  if (sorted.length === 0) {return null;}
 
   const buys  = sorted.filter((r) => !r.error && r.recommendation === 'BUY').length;
   const waits = sorted.filter((r) => !r.error && r.recommendation === 'WAIT').length;
