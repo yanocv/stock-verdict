@@ -15,6 +15,7 @@ import { getBenchmarksForSector } from '@/lib/benchmarks/industries';
 import { generateAINarrative } from '@/lib/services/claudeService';
 import { calculateRSI, classifyRSI, calculateSMA, extractCloses } from '@/lib/formulas/rsi';
 import { runAdvancedDCFForStock } from '@/lib/formulas/dcfAdvanced';
+import { estimateFairValue } from '@/lib/formulas/fairValue';
 import type { StockVerdictResponse, TechnicalIndicators } from '@/types';
 
 export async function GET(
@@ -53,7 +54,7 @@ export async function GET(
     const macroRegime = determineMacroRegime(macroData);
 
     // 4. Get industry benchmarks for the sector
-    const benchmarks = getBenchmarksForSector(overview.sector);
+    const benchmarks = getBenchmarksForSector(overview.sector, overview.industry);
 
     // 5. Technical indicators from price history
     const closes = extractCloses(priceHistory);
@@ -81,7 +82,14 @@ export async function GET(
     };
 
     // 6. Advanced DCF with WACC + sensitivity table
-    const dcfAnalysis = runAdvancedDCFForStock(overview, financials, balanceSheet, financialHistory);
+    const dcfAnalysis = runAdvancedDCFForStock(overview, financials, balanceSheet, financialHistory, macroData);
+    const fairValueEstimate = estimateFairValue({
+      overview,
+      financials,
+      history: financialHistory,
+      dcf: dcfAnalysis,
+      benchmarks,
+    });
 
     // 7. Run the master verdict engine with real macro, news, technicals and DCF
     const verdict = generateVerdict({
@@ -93,9 +101,10 @@ export async function GET(
       macroScore,
       newsScore,
       technicalIndicators,
-      dcfFairValuePerShare: dcfAnalysis.baseCase,
+      dcfFairValuePerShare: fairValueEstimate.value,
       sharesOutstanding: overview.sharesOutstanding,
       currencyMismatch: dcfAnalysis.currencyMismatch != null,
+      requiredMosBonus: macroRegime.marginOfSafetyBonus / 100,
     });
 
     // 8. Run individual investor lenses
@@ -125,7 +134,8 @@ export async function GET(
       normalizedTicker,
       financials,
       { cash: balanceSheet.cash, totalDebt: balanceSheet.totalDebt },
-      overview.sector
+      overview.sector,
+      overview.industry
     );
 
     // 11. Generate AI narrative (non-blocking — null if key not set or call fails)
@@ -160,6 +170,7 @@ export async function GET(
       analystConsensus,
       technicalIndicators,
       dcfAnalysis,
+      fairValueEstimate,
       japanFilter,
     };
 

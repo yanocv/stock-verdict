@@ -1,11 +1,13 @@
 import type { MacroData } from '@/types';
+import { classifyIndexTrend } from './macroRegime';
+import { DEFAULT_ENGINE_PARAMS } from './params';
 
 /**
  * Scores macro conditions on a 0–10 scale.
  *
  * Factors:
  * - VIX (fear index): high VIX = bearish environment
- * - S&P 500 trend: used as a market regime proxy
+ * - S&P 500 and Nikkei 225 trend (vs 200-day average and 52-week high)
  * - USD/JPY: relevant for cross-market JP/US stocks
  *
  * Returns 5 (neutral) when no macro data is available.
@@ -30,19 +32,13 @@ export function scoreMacro(macro: MacroData): number {
     factorsUsed += 2;
   }
 
-  // ── S&P 500 level ────────────────────────────────────────────
-  // Rough regime check: use 52wk context not available here,
-  // so just check if it's above historical milestone levels.
-  // This is a lightweight proxy — no historical data needed.
-  if (macro.sp500 !== null) {
-    // If S&P 500 > 4,000 it's generally healthy (post-2020 recovery)
-    // > 5,000 = strong bull market
-    let sp500Score: number;
-    if (macro.sp500 > 5000) {sp500Score = 7;}
-    else if (macro.sp500 > 4000) {sp500Score = 6;}
-    else if (macro.sp500 > 3000) {sp500Score = 5;}
-    else {sp500Score = 3;}
-    factorScore += sp500Score;
+  // ── Index trends (S&P 500, Nikkei 225) ───────────────────────
+  // By trend vs the 200-day average and 52-week high, not by level:
+  // levels drift up over time, so fixed levels always read "healthy".
+  for (const trend of [macro.sp500Trend, macro.nikkeiTrend]) {
+    if (trend === null) {continue;}
+    const signal = classifyIndexTrend(trend, DEFAULT_ENGINE_PARAMS.regime);
+    factorScore += signal === 'bullish' ? 7 : signal === 'bearish' ? 3 : 5;
     factorsUsed += 1;
   }
 

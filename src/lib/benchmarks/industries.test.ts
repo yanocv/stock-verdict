@@ -34,3 +34,20 @@ describe('getBenchmarksForSector', () => {
     expect(result).toHaveProperty('operatingMargin.good');
   });
 });
+
+describe('getBenchmarksForSector with Yahoo names', () => {
+  it('maps Yahoo industries before the broad sector', () => {
+    expect(getBenchmarksForSector('Consumer Cyclical', 'Auto Manufacturers')).toBe(INDUSTRY_BENCHMARKS['Auto Manufacturing']);
+    expect(getBenchmarksForSector('Communication Services', 'Telecom Services')).toBe(INDUSTRY_BENCHMARKS.Telecom);
+    expect(getBenchmarksForSector('Healthcare', 'Drug Manufacturers - General')).toBe(INDUSTRY_BENCHMARKS['Pharma/Biotech']);
+  });
+
+  it('maps Yahoo sectors whose names differ', () => {
+    expect(getBenchmarksForSector('Consumer Defensive', 'Packaged Foods')).toBe(INDUSTRY_BENCHMARKS['Consumer Goods']);
+  });
+
+  it('keeps exact sector matches and falls back to the default', () => {
+    expect(getBenchmarksForSector('Technology', 'Electronic Components')).toBe(INDUSTRY_BENCHMARKS.Technology);
+    expect(getBenchmarksForSector('Industrials', 'Specialty Industrial Machinery')).toBe(DEFAULT_BENCHMARKS);
+  });
+});

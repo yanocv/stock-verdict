@@ -22,9 +22,10 @@ export interface VerdictEngineParams {
   newsScore?: number;           // 0–10, defaults to 5 (neutral) when not provided
   technicalIndicators?: TechnicalIndicators | null; // RSI + SMA signals from price history
   /**
-   * DCF fair value per share (pre-calculated with real sharesOutstanding).
+   * Fair value per share from estimateFairValue (DCF, earnings DCF or P/B–ROE).
    * When provided, the margin of safety is incorporated into the valuation score.
-   * This is the primary fix for the "WAIT despite trading 50% below fair value" bug.
+   * null means "no reliable fair value": nothing is shown and no fallback runs.
+   * undefined (not given) lets the simple FCF fallback below estimate one.
    */
   dcfFairValuePerShare?: number | null;
   /**
@@ -37,6 +38,12 @@ export interface VerdictEngineParams {
    * Skips the fallback DCF, whose per-share value would be wrong.
    */
   currencyMismatch?: boolean;
+  /**
+   * Extra margin of safety (decimal, e.g. 0.05) the market regime requires.
+   * It is subtracted from the DCF margin of safety before scoring and lowers
+   * the suggested entry price by the same amount.
+   */
+  requiredMosBonus?: number;
   /** Weights and thresholds; defaults to DEFAULT_ENGINE_PARAMS (override for backtests). */
   engineParams?: EngineParams;
 }
@@ -68,6 +75,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     dcfFairValuePerShare,
     sharesOutstanding = 1,
     currencyMismatch = false,
+    requiredMosBonus = 0,
     engineParams: p = DEFAULT_ENGINE_PARAMS,
   } = params;
 
@@ -123,7 +131,8 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   let mosPercent: number | null = null;
   if (dcfFairValuePerShare !== null && dcfFairValuePerShare !== undefined && dcfFairValuePerShare > 0 && price > 0) {
     mosPercent = (dcfFairValuePerShare - price) / dcfFairValuePerShare;
-    const mos = mosPercent;
+    // A cautious market asks for a bigger discount before the same points apply
+    const mos = mosPercent - requiredMosBonus;
     const step =
       p.marginOfSafety.above.find((s) => mos > s.mos) ??
       p.marginOfSafety.below.find((s) => mos < s.mos);
@@ -264,11 +273,13 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     });
   }
 
-  // Prefer the more accurate advanced DCF fair value when available
-  const displayFairValue = dcfFairValuePerShare ?? fairValue;
+  // A given fair value wins, including null ("no reliable fair value"):
+  // the simple fallback above only serves callers that don't estimate one.
+  const displayFairValue = dcfFairValuePerShare !== undefined ? dcfFairValuePerShare : fairValue;
+  const entryFactor = p.suggestedBuy.fairValueFactor - requiredMosBonus;
   const suggestedBuyPrice =
     displayFairValue !== null
-      ? displayFairValue * p.suggestedBuy.fairValueFactor
+      ? displayFairValue * entryFactor
       : price * p.suggestedBuy.noFairValuePriceFactor;
 
   // Reasons
@@ -293,8 +304,13 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   }
 
   // Price vs suggested buy price
-  if (displayFairValue !== null && price < displayFairValue * p.suggestedBuy.fairValueFactor) {
+  if (displayFairValue !== null && price < displayFairValue * entryFactor) {
     bullish.push('Current price already below our suggested entry level');
+  }
+  if (requiredMosBonus > 0 && displayFairValue !== null) {
+    bearish.push(
+      `Market caution: a BUY needs an extra ${Math.round(requiredMosBonus * 100)}% discount to fair value`
+    );
   }
 
   if (fcf !== null && fcf <= 0) {bearish.push('Negative or zero free cash flow');}

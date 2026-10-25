@@ -1,5 +1,6 @@
 import type { FinancialMetrics } from '@/types';
 import type { GateResult, JapanFilterResult, JapanFilterOverall } from '@/types';
+import { resolveSectorKey } from '@/lib/benchmarks/industries';
 
 /**
  * TOPIX sector thresholds for the Japan 6-gate filter.
@@ -112,8 +113,9 @@ const DEFAULT_TOPIX_THRESHOLDS: TopixSectorThresholds = {
   revenueGrowthFloor: 1,
 };
 
-export function getTopixThresholds(sector: string): TopixSectorThresholds {
-  return TOPIX_SECTOR_THRESHOLDS[sector] ?? DEFAULT_TOPIX_THRESHOLDS;
+export function getTopixThresholds(sector: string, industry = ''): TopixSectorThresholds {
+  const key = resolveSectorKey(sector, industry, TOPIX_SECTOR_THRESHOLDS);
+  return (key !== undefined ? TOPIX_SECTOR_THRESHOLDS[key] : undefined) ?? DEFAULT_TOPIX_THRESHOLDS;
 }
 
 /** Returns true if the ticker is a Japanese-listed stock (ends in .T or is a 4-digit number) */
@@ -463,7 +465,8 @@ export function runJapanFilter(
   ticker: string,
   financials: FinancialMetrics,
   balanceSheet: { cash: number; totalDebt: number },
-  sector: string
+  sector: string,
+  industry = ''
 ): JapanFilterResult {
   if (!isJapaneseTicker(ticker)) {
     return {
@@ -478,7 +481,7 @@ export function runJapanFilter(
     };
   }
 
-  const thresholds = getTopixThresholds(sector);
+  const thresholds = getTopixThresholds(sector, industry);
   const gates: GateResult[] = [
     evaluateGate1PE(financials.peRatio, thresholds),
     evaluateGate2PEG(financials.pegRatio, thresholds),

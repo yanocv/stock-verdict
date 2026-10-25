@@ -209,3 +209,9 @@ describe('runJapanFilter — summary messages', () => {
     }
   });
 });
+describe('getTopixThresholds with Yahoo names', () => {
+  it('uses the industry before the broad sector', () => {
+    expect(getTopixThresholds('Consumer Cyclical', 'Auto Manufacturers')).toBe(getTopixThresholds('Auto Manufacturing'));
+    expect(getTopixThresholds('Financial Services', 'Banks - Diversified')).toBe(getTopixThresholds('Banking'));
+  });
+});

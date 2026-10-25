@@ -3,10 +3,12 @@ import type {
   DCFAnalysis,
   FinancialHistory,
   FinancialMetrics,
+  MacroData,
   SensitivityCell,
   StockOverview,
 } from '@/types';
 import { DEFAULT_ENGINE_PARAMS } from '@/lib/scoring/params';
+import { isJapaneseTicker } from '@/lib/scoring/japanFilter';
 
 const DCF_PARAMS = DEFAULT_ENGINE_PARAMS.dcf;
 
@@ -157,6 +159,67 @@ export function calculateWACC(
 }
 
 /**
+ * Beta for the cost of equity: at least `dcf.betaFloor` (low measured betas
+ * understate equity risk), at most 3 (extreme betas give nonsense rates).
+ */
+export function clampBeta(beta: number): number {
+  return Math.min(3, Math.max(DCF_PARAMS.betaFloor, beta));
+}
+
+/** Mean of the last `count` finite values (oldest first), or null when none. */
+function averageLast(values: Array<number | null | undefined>, count: number): number | null {
+  const recent = values
+    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+    .slice(-count);
+  return recent.length > 0 ? recent.reduce((a, b) => a + b, 0) / recent.length : null;
+}
+
+export interface CashFlowBase {
+  /** 'fcf': average free cash flow. 'earnings': average net income × sustainable payout. */
+  basis: 'fcf' | 'earnings';
+  /** Yearly cash flow to discount, in statement currency */
+  amount: number;
+}
+
+/**
+ * Picks the yearly cash flow the DCF discounts, averaged over the last
+ * `dcf.cashFlowYears` annual periods so one odd year can't swing the value.
+ *
+ * Free cash flow is used when it is in line with earnings (FCF ÷ net income
+ * within `dcf.fcfToEarnings`). Otherwise it is distorted — finance arms
+ * (Toyota), large advance payments (MHI), heavy investment years — and
+ * earnings are used instead, minus what growth needs to be reinvested:
+ * payout = 1 − growth ÷ ROE, at least `dcf.minPayout`.
+ *
+ * Without history it falls back to the latest FCF and EPS × shares.
+ * Returns null when neither cash flow nor earnings is positive.
+ */
+export function selectCashFlowBase(
+  financials: Pick<FinancialMetrics, 'freeCashFlow' | 'eps' | 'roe'>,
+  history: Pick<FinancialHistory, 'cashFlowAnnual' | 'incomeAnnual'> | null | undefined,
+  sharesOutstanding: number,
+  longRunGrowth: number
+): CashFlowBase | null {
+  const years = DCF_PARAMS.cashFlowYears;
+  const fcf =
+    averageLast(history?.cashFlowAnnual.map((p) => p.freeCashFlow) ?? [], years) ?? financials.freeCashFlow;
+  const latestEarnings =
+    financials.eps !== null && sharesOutstanding > 0 ? financials.eps * sharesOutstanding : null;
+  const earnings = averageLast(history?.incomeAnnual.map((p) => p.netIncome) ?? [], years) ?? latestEarnings;
+
+  if (earnings !== null && earnings > 0) {
+    const { min, max } = DCF_PARAMS.fcfToEarnings;
+    if (fcf !== null && fcf / earnings >= min && fcf / earnings <= max) {
+      return { basis: 'fcf', amount: fcf };
+    }
+    const roe = financials.roe !== null && financials.roe > 0 ? financials.roe / 100 : null;
+    const payout = roe !== null ? Math.min(1, Math.max(DCF_PARAMS.minPayout, 1 - longRunGrowth / roe)) : DCF_PARAMS.minPayout;
+    return { basis: 'earnings', amount: earnings * payout };
+  }
+  return fcf !== null && fcf > 0 ? { basis: 'fcf', amount: fcf } : null;
+}
+
+/**
  * Calculates DCF fair value per share for a given WACC and growth rate.
  * Includes: projection-period PV + terminal value PV, adjusted for net debt.
  *
@@ -243,15 +306,18 @@ export function runAdvancedDCF(params: AdvancedDCFParams): DCFAnalysis {
     growthRate,
     riskFreeRate: rfRaw,
     equityRiskPremium = DEFAULT_EQUITY_RISK_PREMIUM,
-    terminalGrowthRate = DEFAULT_TERMINAL_GROWTH_RATE,
+    terminalGrowthRate: terminalGrowthInput = DEFAULT_TERMINAL_GROWTH_RATE,
     projectionYears = 10,
     currentPrice,
   } = params;
 
   const riskFreeRate = rfRaw ?? DEFAULT_RISK_FREE_RATE;
+  // A business can't outgrow the economy forever; the risk-free rate is the
+  // usual ceiling for long-run growth. Matters in Japan, where the JGB yield
+  // can sit below the default, and keeps WACC − growth from getting tiny.
+  const terminalGrowthRate = Math.min(terminalGrowthInput, riskFreeRate);
 
-  // Clamp beta to avoid extreme WACC values
-  const betaUsed = Math.min(3, Math.max(0.3, beta));
+  const betaUsed = clampBeta(beta);
   const wacc = calculateWACC(riskFreeRate, betaUsed, equityRiskPremium);
 
   // Clamp growth rate
@@ -316,6 +382,22 @@ export function getCurrencyMismatch(
 }
 
 /**
+ * Risk-free rate (decimal) for discounting a stock's cash flows: the live
+ * 10-year government yield of its home market — JGB for Tokyo tickers, US
+ * Treasury otherwise — or that market's fallback when the yield is missing.
+ * Rate moves (Fed, BoJ, hikes) reach fair values through this.
+ */
+export function riskFreeRateFor(
+  ticker: string,
+  macro?: Pick<MacroData, 'usTenYearYield' | 'jgbTenYearYield'> | null
+): number {
+  if (isJapaneseTicker(ticker)) {
+    return macro?.jgbTenYearYield != null ? macro.jgbTenYearYield / 100 : DCF_PARAMS.riskFreeRateJp;
+  }
+  return macro?.usTenYearYield != null ? macro.usTenYearYield / 100 : DCF_PARAMS.riskFreeRate;
+}
+
+/**
  * Runs the advanced DCF from fetched stock data, so every caller (full
  * analysis, screener) values a stock with the same inputs.
  */
@@ -323,20 +405,28 @@ export function runAdvancedDCFForStock(
   overview: StockOverview,
   financials: FinancialMetrics,
   balanceSheet: BalanceSheet,
-  history?: FinancialHistory | null
+  history?: FinancialHistory | null,
+  macro?: Pick<MacroData, 'usTenYearYield' | 'jgbTenYearYield'> | null
 ): DCFAnalysis {
   const currencyMismatch = getCurrencyMismatch(overview);
+  const riskFreeRate = riskFreeRateFor(overview.ticker, macro);
+  // No cash flow → no base case when currencies differ
+  const base = currencyMismatch
+    ? null
+    : selectCashFlowBase(financials, history, overview.sharesOutstanding, Math.min(DEFAULT_TERMINAL_GROWTH_RATE, riskFreeRate));
   const analysis = runAdvancedDCF({
-    // No FCF → no base case when currencies differ
-    freeCashFlow: currencyMismatch ? 0 : financials.freeCashFlow ?? 0,
+    freeCashFlow: base?.amount ?? 0,
     sharesOutstanding: overview.sharesOutstanding,
-    netDebt: balanceSheet.totalDebt - balanceSheet.cash,
+    // Net income is already after interest, so debt isn't subtracted again.
+    // This also keeps finance-arm debt (Toyota) out of the equity value.
+    netDebt: base?.basis === 'earnings' ? 0 : balanceSheet.totalDebt - balanceSheet.cash,
     beta: financials.beta ?? 1.0,
     growthRate: estimateGrowthRate(financials, history),
-    riskFreeRate: null, // will use DEFAULT_RISK_FREE_RATE (4.5%)
+    riskFreeRate,
     currentPrice: overview.currentPrice,
   });
+  const cashFlowBasis = base?.basis ?? null;
   return currencyMismatch
-    ? { ...analysis, sensitivityTable: [], currencyMismatch }
-    : { ...analysis, currencyMismatch };
+    ? { ...analysis, sensitivityTable: [], currencyMismatch, cashFlowBasis }
+    : { ...analysis, currencyMismatch, cashFlowBasis };
 }

@@ -54,6 +54,11 @@ export const IncomeStatementSchema = z.object({
   ebitda: z.number(),
 });
 
+const IndexTrendSchema = z.object({
+  vsSma200Pct: z.number(),
+  drawdownPct: z.number(),
+});
+
 export const MacroDataSchema = z.object({
   bojRate: z.number().nullable(),
   fedRate: z.number().nullable(),
@@ -63,6 +68,10 @@ export const MacroDataSchema = z.object({
   nikkei225: z.number().nullable(),
   sp500: z.number().nullable(),
   vix: z.number().nullable(),
+  usTenYearYield: z.number().nullable(),
+  jgbTenYearYield: z.number().nullable(),
+  sp500Trend: IndexTrendSchema.nullable(),
+  nikkeiTrend: IndexTrendSchema.nullable(),
 });
 
 export const NewsArticleSchema = z.object({

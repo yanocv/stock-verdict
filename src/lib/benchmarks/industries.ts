@@ -80,11 +80,49 @@ const DEFAULT_BENCHMARKS: IndustryBenchmarks = {
 };
 
 /**
- * Get benchmarks for a given sector.
- * Falls back to DEFAULT_BENCHMARKS if the sector is not found.
+ * Yahoo industries that map to a benchmark set. Checked before the sector,
+ * since Yahoo's sectors are broad (Toyota is "Consumer Cyclical").
  */
-export function getBenchmarksForSector(sector: string): IndustryBenchmarks {
-  return INDUSTRY_BENCHMARKS[sector] ?? DEFAULT_BENCHMARKS;
+const INDUSTRY_ALIASES: ReadonlyArray<[RegExp, string]> = [
+  [/^Banks/i, 'Banking'],
+  [/^Auto (Manufacturers|Parts)/i, 'Auto Manufacturing'],
+  [/Retail|Department Stores|Discount Stores|Grocery Stores|Home Improvement/i, 'Retail'],
+  [/Drug Manufacturers|Biotechnology/i, 'Pharma/Biotech'],
+  [/Telecom/i, 'Telecom'],
+];
+
+/** Yahoo sectors whose names differ from the benchmark keys. */
+const SECTOR_ALIASES: Readonly<Record<string, string>> = {
+  Healthcare: 'Pharma/Biotech',
+  'Consumer Defensive': 'Consumer Goods',
+  'Consumer Cyclical': 'Consumer Goods',
+};
+
+/**
+ * Which key of a sector table applies to a stock: the first Yahoo industry
+ * alias the table has (most specific, e.g. banks within Financial Services),
+ * then the exact sector, then the Yahoo sector alias.
+ * Shared by the scoring benchmarks and the Japan gate thresholds.
+ */
+export function resolveSectorKey(
+  sector: string,
+  industry: string,
+  table: Readonly<Record<string, unknown>>
+): string | undefined {
+  const byIndustry = INDUSTRY_ALIASES.find(([pattern, key]) => pattern.test(industry) && key in table)?.[1];
+  if (byIndustry !== undefined) {return byIndustry;}
+  if (sector in table) {return sector;}
+  const bySector = SECTOR_ALIASES[sector];
+  return bySector !== undefined && bySector in table ? bySector : undefined;
+}
+
+/**
+ * Get benchmarks for a stock (see resolveSectorKey). Falls back to
+ * DEFAULT_BENCHMARKS, e.g. for Industrials and Basic Materials, which have no set yet.
+ */
+export function getBenchmarksForSector(sector: string, industry = ''): IndustryBenchmarks {
+  const key = resolveSectorKey(sector, industry, INDUSTRY_BENCHMARKS);
+  return (key !== undefined ? INDUSTRY_BENCHMARKS[key] : undefined) ?? DEFAULT_BENCHMARKS;
 }
 
 export { INDUSTRY_BENCHMARKS, DEFAULT_BENCHMARKS };

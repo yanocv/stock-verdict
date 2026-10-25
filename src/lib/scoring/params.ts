@@ -59,9 +59,43 @@ export interface EngineParams {
     terminalGrowth: number;
     projectionYears: number;
   };
+  /**
+   * Market regime (macroRegime.ts). Indices are judged by trend — position vs
+   * their 200-day average and drop from the 52-week high — never by level,
+   * because levels drift up over time.
+   */
+  regime: {
+    /** Bullish index: above its 200-day average and less than this % off its high */
+    shallowDrawdownPct: number;
+    /** Bearish index: below its 200-day average and more than shallowDrawdownPct off its high, or more than this % off its high */
+    deepDrawdownPct: number;
+    /** Extra margin of safety (decimal) required for BUY in each regime */
+    mosBonus: { riskOn: number; neutral: number; riskOff: number };
+  };
   /** Advanced DCF defaults (dcfAdvanced.ts). */
   dcf: {
+    /** US 10Y fallback when the live yield is unavailable */
     riskFreeRate: number;
+    /** JGB 10Y fallback for Japanese tickers when the live yield is unavailable */
+    riskFreeRateJp: number;
+    /**
+     * Lowest beta used for the cost of equity. Measured betas of many Japanese
+     * large caps (0.3–0.4) would put the cost of equity near the bond yield,
+     * which the market plainly doesn't accept (e.g. Toyota at ~9× earnings).
+     */
+    betaFloor: number;
+    /** Annual periods averaged for the cash-flow base (smooths one-off years) */
+    cashFlowYears: number;
+    /** Use free cash flow when FCF ÷ net income is in this range; otherwise earnings */
+    fcfToEarnings: { min: number; max: number };
+    /** Lowest share of earnings counted as distributable in the earnings method */
+    minPayout: number;
+    /**
+     * Fair value is capped at this × (EPS × sector fair P/E). Cap only: a model
+     * value below what earnings suggest is kept, since one-off gains can
+     * inflate EPS (e.g. SoftBank) and raising would invent bargains.
+     */
+    sanityCap: number;
     equityRiskPremium: number;
     terminalGrowth: number;
     minGrowth: number;
@@ -113,8 +147,19 @@ export const DEFAULT_ENGINE_PARAMS: EngineParams = {
     terminalGrowth: 0.03,
     projectionYears: 10,
   },
+  regime: {
+    shallowDrawdownPct: 10,
+    deepDrawdownPct: 20,
+    mosBonus: { riskOn: 0, neutral: 0.05, riskOff: 0.10 },
+  },
   dcf: {
-    riskFreeRate: 0.045,      // US 10Y fallback; Japan → live JGB 10Y (decided, not built)
+    riskFreeRate: 0.045,      // US 10Y fallback (live ^TNX preferred)
+    riskFreeRateJp: 0.029,    // JGB 10Y fallback (live MoF yield preferred); JGB 10Y was 2.91% on 2026-10-22
+    betaFloor: 0.8,
+    cashFlowYears: 4,
+    fcfToEarnings: { min: 0.5, max: 1.5 },
+    minPayout: 0.5,
+    sanityCap: 1.5,
     equityRiskPremium: 0.055, // Damodaran global estimate
     terminalGrowth: 0.03,
     minGrowth: -0.05,

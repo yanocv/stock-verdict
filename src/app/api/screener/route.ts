@@ -2,9 +2,13 @@ import { fetchStockData } from '@/lib/services/yahooFinance';
 import { fetchMacroData } from '@/lib/services/macroService';
 import { generateVerdict } from '@/lib/scoring/verdictEngine';
 import { scoreMacro } from '@/lib/scoring/macroScore';
+import { determineMacroRegime } from '@/lib/scoring/macroRegime';
+import type { MacroData } from '@/types';
 import { getBenchmarksForSector } from '@/lib/benchmarks/industries';
 import { NIKKEI_UNIVERSE } from '@/lib/screener/nikkeiUniverse';
 import { runAdvancedDCFForStock } from '@/lib/formulas/dcfAdvanced';
+import { estimateFairValue } from '@/lib/formulas/fairValue';
+import { fetchFinancialHistory } from '@/lib/services/financialHistoryService';
 
 export interface ScreenerResult {
   ticker: string;
@@ -26,16 +30,26 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Market inputs fetched once per scan and shared by every ticker. */
+interface MarketContext {
+  macroData: MacroData;
+  macroScore: number;
+  /** Extra margin of safety (decimal) required by the market regime */
+  requiredMosBonus: number;
+}
+
 async function processTicker(
   ticker: string,
   name: string,
   sector: string,
-  macroScore: number
+  { macroData, macroScore, requiredMosBonus }: MarketContext
 ): Promise<ScreenerResult> {
-  const stockData = await fetchStockData(ticker);
+  // History is needed so screener fair values match the full analysis
+  const [stockData, history] = await Promise.all([fetchStockData(ticker), fetchFinancialHistory(ticker)]);
   const { overview, financials, balanceSheet } = stockData;
-  const benchmarks = getBenchmarksForSector(overview.sector || sector);
-  const dcfAnalysis = runAdvancedDCFForStock(overview, financials, balanceSheet);
+  const benchmarks = getBenchmarksForSector(overview.sector || sector, overview.industry);
+  const dcfAnalysis = runAdvancedDCFForStock(overview, financials, balanceSheet, history, macroData);
+  const fairValue = estimateFairValue({ overview, financials, history, dcf: dcfAnalysis, benchmarks });
 
   const verdict = generateVerdict({
     financials,
@@ -45,9 +59,10 @@ async function processTicker(
     sector: overview.sector || sector,
     macroScore,
     newsScore: 5, // neutral — skip per-ticker news fetch to keep screener fast
-    dcfFairValuePerShare: dcfAnalysis.baseCase,
+    dcfFairValuePerShare: fairValue.value,
     sharesOutstanding: overview.sharesOutstanding,
     currencyMismatch: dcfAnalysis.currencyMismatch != null,
+    requiredMosBonus,
   });
 
   const upside =
@@ -80,7 +95,11 @@ export async function GET() {
       try {
         // Fetch macro once — shared across all tickers
         const macroData = await fetchMacroData();
-        const macroScore = scoreMacro(macroData);
+        const market: MarketContext = {
+          macroData,
+          macroScore: scoreMacro(macroData),
+          requiredMosBonus: determineMacroRegime(macroData).marginOfSafetyBonus / 100,
+        };
 
         let processed = 0;
         const total = NIKKEI_UNIVERSE.length;
@@ -90,7 +109,7 @@ export async function GET() {
 
           const batchResults = await Promise.allSettled(
             batch.map(({ ticker, name, sector }) =>
-              processTicker(ticker, name, sector, macroScore)
+              processTicker(ticker, name, sector, market)
             )
           );
 

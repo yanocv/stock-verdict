@@ -15,6 +15,8 @@ export interface SensitivityCell {
 export interface DCFAnalysis {
   /** Fair value per share at the base-case WACC and growth rate */
   baseCase: number | null;
+  /** Cash flow the DCF discounted: average free cash flow, or earnings after reinvestment (see selectCashFlowBase) */
+  cashFlowBasis?: 'fcf' | 'earnings' | null;
   /** Set when financials and price use different currencies; no fair value is computed. */
   currencyMismatch?: { price: string; financial: string } | null;
   /** WACC used in the base-case calculation */

@@ -1,4 +1,7 @@
 import type { MacroData } from '@/types';
+import type { IndexTrend } from '@/types/macro';
+import type { EngineParams } from './params';
+import { DEFAULT_ENGINE_PARAMS } from './params';
 
 export type MacroRegime = 'risk-on' | 'neutral' | 'risk-off';
 
@@ -27,13 +30,18 @@ export interface RegimeSignal {
  *
  * Scoring: each factor votes bullish (+1), neutral (0), or bearish (-1).
  * Sum > 1 = risk-on, -1 to 1 = neutral, < -1 = risk-off.
+ * Indices vote by trend (classifyIndexTrend), never by level: levels drift up
+ * over time, so a fixed level would read "bullish" forever.
  *
  * Per docs_INVESTMENT_PHILOSOPHY.md:
  * - Risk-on  (VIX < 18, normal yield curve, PMI > 52) → standard thresholds
  * - Neutral  (mixed signals)                           → require +5% MoS
  * - Risk-off (VIX > 28, inverted curve, PMI < 48)      → require +10% MoS
  */
-export function determineMacroRegime(macro: MacroData): MacroRegimeResult {
+export function determineMacroRegime(
+  macro: MacroData,
+  p: EngineParams = DEFAULT_ENGINE_PARAMS
+): MacroRegimeResult {
   const signals: RegimeSignal[] = [];
   let score = 0;
 
@@ -65,32 +73,25 @@ export function determineMacroRegime(macro: MacroData): MacroRegimeResult {
     }
   }
 
-  // ── S&P 500 trend proxy ──────────────────────────────────────────────
-  if (macro.sp500 !== null) {
-    if (macro.sp500 > 5000) {
-      score += 1;
-      signals.push({
-        factor: 'S&P 500',
-        value: macro.sp500.toFixed(0),
-        signal: 'bullish',
-        note: 'Strong bull market levels',
-      });
-    } else if (macro.sp500 > 3500) {
-      signals.push({
-        factor: 'S&P 500',
-        value: macro.sp500.toFixed(0),
-        signal: 'neutral',
-        note: 'Mid-cycle levels',
-      });
-    } else {
-      score -= 1;
-      signals.push({
-        factor: 'S&P 500',
-        value: macro.sp500.toFixed(0),
-        signal: 'bearish',
-        note: 'Depressed equity levels — bear market territory',
-      });
-    }
+  // ── Index trends (S&P 500, Nikkei 225) ──────────────────────────────
+  for (const [factor, trend] of [
+    ['S&P 500', macro.sp500Trend],
+    ['Nikkei 225', macro.nikkeiTrend],
+  ] as const) {
+    if (trend === null) {continue;}
+    const signal = classifyIndexTrend(trend, p.regime);
+    score += signal === 'bullish' ? 1 : signal === 'bearish' ? -1 : 0;
+    signals.push({
+      factor,
+      value: `${trend.vsSma200Pct >= 0 ? '+' : ''}${trend.vsSma200Pct}% vs 200-day · ${trend.drawdownPct}% off high`,
+      signal,
+      note:
+        signal === 'bullish'
+          ? 'Uptrend: above its 200-day average and near its high'
+          : signal === 'bearish'
+            ? 'Downtrend: below its 200-day average and well off its high'
+            : 'Mixed trend',
+    });
   }
 
   // ── USD/JPY ──────────────────────────────────────────────────────────
@@ -121,52 +122,40 @@ export function determineMacroRegime(macro: MacroData): MacroRegimeResult {
     }
   }
 
-  // ── Nikkei trend ────────────────────────────────────────────────────
-  if (macro.nikkei225 !== null) {
-    if (macro.nikkei225 > 38000) {
-      score += 1;
-      signals.push({
-        factor: 'Nikkei 225',
-        value: macro.nikkei225.toFixed(0),
-        signal: 'bullish',
-        note: 'Nikkei at multi-decade highs — JP market in strong uptrend',
-      });
-    } else if (macro.nikkei225 > 28000) {
-      signals.push({
-        factor: 'Nikkei 225',
-        value: macro.nikkei225.toFixed(0),
-        signal: 'neutral',
-        note: 'Nikkei at mid-range levels',
-      });
-    } else {
-      score -= 1;
-      signals.push({
-        factor: 'Nikkei 225',
-        value: macro.nikkei225.toFixed(0),
-        signal: 'bearish',
-        note: 'Nikkei weak — JP market under pressure',
-      });
-    }
-  }
-
   // ── Determine regime ────────────────────────────────────────────────
+  const bonus = p.regime.mosBonus;
   let regime: MacroRegime;
   let label: string;
   let marginOfSafetyBonus: number;
 
   if (score >= 2) {
     regime = 'risk-on';
+    marginOfSafetyBonus = Math.round(bonus.riskOn * 100);
     label = 'Risk-On — Macro conditions are favourable. Standard thresholds apply.';
-    marginOfSafetyBonus = 0;
   } else if (score <= -2) {
     regime = 'risk-off';
-    label = 'Risk-Off — Macro conditions are unfavourable. Require +10% margin of safety. Focus on quality and defensive sectors.';
-    marginOfSafetyBonus = 10;
+    marginOfSafetyBonus = Math.round(bonus.riskOff * 100);
+    label = `Risk-Off — Macro conditions are unfavourable. Require +${marginOfSafetyBonus}% margin of safety. Focus on quality and defensive sectors.`;
   } else {
     regime = 'neutral';
-    label = 'Neutral — Mixed macro signals. Require +5% margin of safety on all new positions.';
-    marginOfSafetyBonus = 5;
+    marginOfSafetyBonus = Math.round(bonus.neutral * 100);
+    label = `Neutral — Mixed macro signals. Require +${marginOfSafetyBonus}% margin of safety on all new positions.`;
   }
 
   return { regime, marginOfSafetyBonus, label, signals };
+}
+
+/**
+ * Bullish: above the 200-day average and less than `shallowDrawdownPct` off
+ * the 52-week high. Bearish: below the average and more than that off the
+ * high, or more than `deepDrawdownPct` off the high on its own. Else neutral.
+ */
+export function classifyIndexTrend(
+  trend: IndexTrend,
+  r: EngineParams['regime']
+): RegimeSignal['signal'] {
+  if (trend.drawdownPct > r.deepDrawdownPct) {return 'bearish';}
+  if (trend.vsSma200Pct > 0 && trend.drawdownPct < r.shallowDrawdownPct) {return 'bullish';}
+  if (trend.vsSma200Pct < 0 && trend.drawdownPct >= r.shallowDrawdownPct) {return 'bearish';}
+  return 'neutral';
 }

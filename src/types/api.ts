@@ -16,6 +16,7 @@ import type {
   JapanFilterResult,
 } from './index';
 import type { MacroRegimeResult } from '@/lib/scoring/macroRegime';
+import type { FairValueEstimate } from '@/lib/formulas/fairValue';
 
 /**
  * The full response shape from GET /api/stock/[ticker].
@@ -44,6 +45,8 @@ export interface StockVerdictResponse {
   technicalIndicators: TechnicalIndicators;
   /** Phase 2: full DCF with WACC + sensitivity table */
   dcfAnalysis: DCFAnalysis;
+  /** The fair value the verdict uses: method (DCF on FCF or earnings, or P/B–ROE for financials) and sanity-band adjustment */
+  fairValueEstimate: FairValueEstimate;
   /** Phase 2: Japan 6-gate TOPIX filter (NOT_APPLICABLE for non-JP stocks) */
   japanFilter: JapanFilterResult;
 }

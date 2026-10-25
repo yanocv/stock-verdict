@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import type { BalanceSheet, FinancialMetrics, StockOverview } from '@/types';
+import { DEFAULT_ENGINE_PARAMS } from '@/lib/scoring/params';
 import {
   runAdvancedDCFForStock,
+  riskFreeRateFor,
+  selectCashFlowBase,
   getCurrencyMismatch,
   projectCashFlows,
   cagr,
@@ -181,7 +184,7 @@ describe('runAdvancedDCF', () => {
     const highBeta = runAdvancedDCF({ ...baseParams, beta: 10 });
     expect(highBeta.betaUsed).toBe(3);
     const lowBeta = runAdvancedDCF({ ...baseParams, beta: 0.1 });
-    expect(lowBeta.betaUsed).toBe(0.3);
+    expect(lowBeta.betaUsed).toBe(DEFAULT_ENGINE_PARAMS.dcf.betaFloor);
   });
 
   it('clamps growth rate above 15%', () => {
@@ -191,6 +194,7 @@ describe('runAdvancedDCF', () => {
 });
 describe('runAdvancedDCFForStock', () => {
   const overview = {
+    ticker: 'TEST',
     sharesOutstanding: 1_000_000,
     currentPrice: 50,
     currency: 'USD',
@@ -210,7 +214,8 @@ describe('runAdvancedDCFForStock', () => {
       riskFreeRate: null,
       currentPrice: 50,
     });
-    expect(result).toEqual({ ...direct, currencyMismatch: null });
+    // No history or EPS: falls back to the latest FCF
+    expect(result).toEqual({ ...direct, currencyMismatch: null, cashFlowBasis: 'fcf' });
     expect(result.baseCase).not.toBeNull();
   });
 
@@ -226,6 +231,52 @@ describe('runAdvancedDCFForStock', () => {
   it('returns no base case when free cash flow is missing', () => {
     const result = runAdvancedDCFForStock(overview, { ...financials, freeCashFlow: null }, balanceSheet);
     expect(result.baseCase).toBeNull();
+  });
+
+  it('discounts with the live yield of the stock’s home market', () => {
+    const macro = { usTenYearYield: 4.99, jgbTenYearYield: 2.91 };
+    const us = runAdvancedDCFForStock(overview, financials, balanceSheet, null, macro);
+    const jp = runAdvancedDCFForStock({ ...overview, ticker: '6762.T' }, financials, balanceSheet, null, macro);
+    expect(us.riskFreeRate).toBeCloseTo(0.0499, 6);
+    expect(jp.riskFreeRate).toBeCloseTo(0.0291, 6);
+    // Lower discount rate → higher fair value for the same cash flows
+    expect(jp.baseCase!).toBeGreaterThan(us.baseCase!);
+  });
+});
+
+describe('riskFreeRateFor', () => {
+  const { riskFreeRate, riskFreeRateJp } = DEFAULT_ENGINE_PARAMS.dcf;
+
+  it('uses the JGB yield for Tokyo tickers and the Treasury yield otherwise', () => {
+    const macro = { usTenYearYield: 4.5, jgbTenYearYield: 1.5 };
+    expect(riskFreeRateFor('7203.T', macro)).toBeCloseTo(0.015, 6);
+    expect(riskFreeRateFor('7203', macro)).toBeCloseTo(0.015, 6);
+    expect(riskFreeRateFor('AAPL', macro)).toBeCloseTo(0.045, 6);
+  });
+
+  it('falls back per market when the live yield is missing', () => {
+    const none = { usTenYearYield: null, jgbTenYearYield: null };
+    expect(riskFreeRateFor('7203.T', none)).toBe(riskFreeRateJp);
+    expect(riskFreeRateFor('AAPL', none)).toBe(riskFreeRate);
+    expect(riskFreeRateFor('AAPL')).toBe(riskFreeRate);
+  });
+});
+
+describe('terminal growth cap', () => {
+  const params = {
+    freeCashFlow: 1_000_000,
+    sharesOutstanding: 1_000,
+    netDebt: 0,
+    beta: 0.5,
+    growthRate: 0.05,
+    currentPrice: 1_000,
+  };
+
+  it('never lets long-run growth exceed the risk-free rate', () => {
+    expect(runAdvancedDCF({ ...params, riskFreeRate: 0.015 }).terminalGrowthRate).toBe(0.015);
+    expect(runAdvancedDCF({ ...params, riskFreeRate: 0.05 }).terminalGrowthRate).toBe(
+      DEFAULT_ENGINE_PARAMS.dcf.terminalGrowth
+    );
   });
 });
 
@@ -308,5 +359,59 @@ describe('getCurrencyMismatch', () => {
   it('returns both currencies for an ADR', () => {
     expect(getCurrencyMismatch({ currency: 'USD', financialCurrency: 'JPY' }))
       .toEqual({ price: 'USD', financial: 'JPY' });
+  });
+});
+
+describe('selectCashFlowBase', () => {
+  const history = (fcf: number[], ni: number[]) => ({
+    cashFlowAnnual: fcf.map((v, i) => ({ period: String(2022 + i), endDate: '', freeCashFlow: v })),
+    incomeAnnual: ni.map((v, i) => ({ period: String(2022 + i), endDate: '', netIncome: v })),
+  });
+  const fin = { freeCashFlow: 9_999, eps: 10, roe: 12 };
+
+  it('uses average free cash flow when it is in line with earnings', () => {
+    // Avg FCF 150 vs avg earnings 150 → FCF; the odd TTM 9,999 is ignored
+    expect(selectCashFlowBase(fin, history([100, 200], [140, 160]), 100, 0.03)).toEqual({ basis: 'fcf', amount: 150 });
+  });
+
+  it('averages only the most recent years', () => {
+    const base = selectCashFlowBase(fin, history([1, 100, 100, 100, 100], [100, 100, 100, 100, 100]), 100, 0.03);
+    expect(base).toEqual({ basis: 'fcf', amount: 100 });
+  });
+
+  it('switches to earnings after reinvestment when FCF is distorted (finance arm)', () => {
+    // FCF negative, earnings 4,000; payout = 1 − 3% ÷ 12% = 75%
+    const base = selectCashFlowBase(fin, history([-750, -840, -1560, 180], [2450, 4950, 4770, 3830]), 100, 0.03);
+    expect(base!.basis).toBe('earnings');
+    expect(base!.amount).toBeCloseTo(4000 * 0.75, 6);
+  });
+
+  it('switches to earnings when FCF is far above earnings (advance payments)', () => {
+    expect(selectCashFlowBase(fin, history([600, 600], [200, 200]), 100, 0.03)!.basis).toBe('earnings');
+  });
+
+  it('keeps at least the minimum payout for low-ROE companies', () => {
+    const base = selectCashFlowBase({ ...fin, roe: 4 }, history([-10], [100]), 100, 0.03);
+    expect(base!.amount).toBeCloseTo(100 * DEFAULT_ENGINE_PARAMS.dcf.minPayout, 6);
+  });
+
+  it('returns null when neither cash flow nor earnings is positive', () => {
+    expect(selectCashFlowBase(fin, history([-5], [-1]), 100, 0.03)).toBeNull();
+  });
+
+  it('falls back to latest FCF and EPS × shares without history', () => {
+    // EPS 10 × 100 shares = 1,000 earnings; FCF 900 → in line → FCF
+    expect(selectCashFlowBase({ freeCashFlow: 900, eps: 10, roe: 12 }, null, 100, 0.03)).toEqual({ basis: 'fcf', amount: 900 });
+  });
+});
+
+describe('runAdvancedDCFForStock with the earnings basis', () => {
+  it('does not subtract debt from earnings (already after interest)', () => {
+    const overview = { ticker: '7203.T', sharesOutstanding: 100, currentPrice: 50, currency: 'JPY', financialCurrency: 'JPY' } as StockOverview;
+    const financials = { freeCashFlow: -500, eps: 40, roe: 12, beta: 1, epsGrowth: 3 } as FinancialMetrics;
+    const lowDebt = runAdvancedDCFForStock(overview, financials, { totalDebt: 0, cash: 0 } as BalanceSheet);
+    const hugeDebt = runAdvancedDCFForStock(overview, financials, { totalDebt: 1e9, cash: 0 } as BalanceSheet);
+    expect(lowDebt.cashFlowBasis).toBe('earnings');
+    expect(hugeDebt.baseCase).toBe(lowDebt.baseCase);
   });
 });

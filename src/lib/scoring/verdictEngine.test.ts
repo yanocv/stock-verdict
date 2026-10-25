@@ -521,3 +521,43 @@ describe('generateVerdict — currency mismatch', () => {
     expect(result.missingData).toContain('fair value (financials in a different currency)');
   });
 });
+
+describe('requiredMosBonus (market regime)', () => {
+  const base = {
+    financials: strongMetrics,
+    balanceSheet,
+    price: 72, // 28% below fair value
+    industryBenchmarks: DEFAULT_BENCHMARKS,
+    dcfFairValuePerShare: 100,
+  };
+
+  it('needs a bigger discount for the same valuation points', () => {
+    const calm = generateVerdict(base);
+    const cautious = generateVerdict({ ...base, requiredMosBonus: 0.05 });
+    // 28% clears the 25% step on its own, but not 25% + 5%
+    expect(cautious.scores.valuation).toBeLessThan(calm.scores.valuation);
+  });
+
+  it('lowers the suggested entry price by the bonus', () => {
+    const calm = generateVerdict(base);
+    const cautious = generateVerdict({ ...base, requiredMosBonus: 0.10 });
+    expect(calm.suggestedBuyPrice).toBeCloseTo(75, 6);
+    expect(cautious.suggestedBuyPrice).toBeCloseTo(65, 6);
+    expect(cautious.reasons.bearish.some((r) => r.includes('extra 10% discount'))).toBe(true);
+  });
+
+  it('changes nothing when there is no fair value', () => {
+    const noFv = { ...base, dcfFairValuePerShare: null, financials: { ...strongMetrics, freeCashFlow: null } };
+    expect(generateVerdict({ ...noFv, requiredMosBonus: 0.10 }).scores).toEqual(generateVerdict(noFv).scores);
+  });
+});
+
+describe('fair value given as null', () => {
+  it('shows no fair value instead of falling back to the simple FCF DCF', () => {
+    const base = { financials: strongMetrics, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS };
+    expect(generateVerdict(base).fairValue).not.toBeNull(); // not given → fallback estimates one
+    const result = generateVerdict({ ...base, dcfFairValuePerShare: null });
+    expect(result.fairValue).toBeNull();
+    expect(result.suggestedBuyPrice).toBeCloseTo(150 * 0.85, 6); // price-based entry when no fair value
+  });
+});
