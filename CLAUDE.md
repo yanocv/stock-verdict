@@ -10,7 +10,7 @@ Next.js app that turns one ticker (US like `AAPL`, Tokyo like `7203` / `7203.T`)
 
 ## Working rules (owner's preferences)
 
-- Never push. Commit locally; the owner reviews in VS Code and pushes. Push only when explicitly asked.
+- Never commit and never push. Leave changes in the working tree; the owner reviews in VS Code and decides when to commit and push.
 - `dev` is the working branch. `master` is stale; CI runs on `dev`, `master` and `main`.
 - Before saying something is done, run lint, typecheck and tests.
 - Changes that alter live verdicts must be called out so the owner can check real tickers.
