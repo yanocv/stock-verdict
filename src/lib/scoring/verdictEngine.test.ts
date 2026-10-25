@@ -576,3 +576,23 @@ describe('verdict uses the displayed score', () => {
     expect(r.recommendation).toBe('WAIT');
   });
 });
+
+describe('nonOperatingEarnings (P15)', () => {
+  const holding: FinancialMetrics = { ...strongMetrics, roe: 32, netProfitMargin: 62, operatingMargin: -11.5, peRatio: 5, pegRatio: 0.5 };
+  const base = { financials: holding, balanceSheet, price: 4276, industryBenchmarks: DEFAULT_BENCHMARKS, dcfFairValuePerShare: null };
+
+  it('does not score P/E, PEG, ROE or net margin built on one-off gains', () => {
+    const naive = generateVerdict(base);
+    const flagged = generateVerdict({ ...base, nonOperatingEarnings: true });
+    expect(flagged.scores.valuation).toBeLessThan(naive.scores.valuation);
+    expect(flagged.scores.financials).toBeLessThan(naive.scores.financials);
+    expect(flagged.reasons.bullish.some((r) => r.includes('ROE'))).toBe(false);
+  });
+
+  it('explains the missing fair value', () => {
+    const r = generateVerdict({ ...base, nonOperatingEarnings: true });
+    expect(r.fairValue).toBeNull();
+    expect(r.missingData).toContain('fair value (profit not from operations)');
+    expect(r.reasons.bearish.some((x) => x.includes('outside its operations'))).toBe(true);
+  });
+});

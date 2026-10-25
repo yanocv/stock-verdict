@@ -207,6 +207,7 @@ Owner goal: one model that uses everything that matters (company numbers, valuat
 
 | P9 | Sector benchmark keys ("Auto Manufacturing", "Telecom"…) didn't match Yahoo's sector names ("Consumer Cyclical", "Communication Services"…), so most stocks were scored against the generic default bands. Same in the Japan gate thresholds. | `benchmarks/industries.ts`, `japanFilter.ts` | Wrong P/E, ROE, margin and D/E bands for e.g. Toyota, SoftBank |
 | P10 | `balanceSheet.shareholderEquity` from the quoteSummary snapshot is 0 for every ticker (statement history has the right values). | `yahooFinance.ts` | Buffett fair value and Graham book value missing; fallback ROE and D/E can't be computed |
+| P15 | Holding companies whose profit comes from investment gains get an earnings-based fair value. SoftBank (9984, 2026-10-25): operating margin −11.5%, FCF −¥2.2T, trailing EPS ¥859 (gains) vs analyst estimate ¥132 → blended ¥495 → fair value ¥6,835 vs price ¥4,276, plus "37% below fair value" and "below entry" reasons. Owner flagged it. | `fairValue.ts`, `dcfAdvanced.ts` | Misleading fair value and bullish reasons; inflated Valuation score (8.5) |
 
 **Status:**
 - P1–P3 fixed 2026-10-25: trend-based regime (`regime` params); MoS bonus applied via `requiredMosBonus`; live US 10Y and MoF JGB 10Y in the DCF (`dcf.riskFreeRateJp` fallback); terminal growth capped at the risk-free rate.
@@ -302,6 +303,7 @@ Status: all approved 2026-10-25 (§10.4). Not built yet.
 |---|---|---|---|
 | 1 | §9 P1–P3, P8, P9; MHI fair-value revision; conservative growth (clip + shrink) and conversion cap | 1, 4 | **Done** 2026-10-25 |
 | 2 | P10: shareholder equity from statement history | — | Next |
+| 2b | P15: no fair value when earnings don't come from operations (operating margin ≤ 0 while profitable); P/E, PEG, ROE and net margin not scored; reason shown. Holding companies would need net asset value (holdings − net debt), which our data lacks | 1 | **Done** 2026-10-25 (owner approved). SoftBank: no fair value, WAIT 6.3 → 4.6 |
 | 3 | P11: Japan cost of equity from TOPIX | 1 | Approved |
 | 4 | P12 + P13 + P14: bear/base/bull values, reward-to-risk gate, uncertainty-scaled margin of safety | 1, 2, 5 | Approved |
 | 5 | Verdict log as decision journal (SQLite, details when started) | 7 | Approved |

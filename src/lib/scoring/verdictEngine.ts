@@ -44,6 +44,12 @@ export interface VerdictEngineParams {
    * the suggested entry price by the same amount.
    */
   requiredMosBonus?: number;
+  /**
+   * True when the profit doesn't come from operations (see
+   * hasNonOperatingEarnings): P/E and PEG are skipped, since they are built
+   * on those earnings, and the missing fair value is explained.
+   */
+  nonOperatingEarnings?: boolean;
   /** Weights and thresholds; defaults to DEFAULT_ENGINE_PARAMS (override for backtests). */
   engineParams?: EngineParams;
 }
@@ -76,6 +82,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     sharesOutstanding = 1,
     currencyMismatch = false,
     requiredMosBonus = 0,
+    nonOperatingEarnings = false,
     engineParams: p = DEFAULT_ENGINE_PARAMS,
   } = params;
 
@@ -86,16 +93,18 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   let financialsScore = 5; // start neutral
   const roe = financials.roe;
   const npm = financials.netProfitMargin;
+  // ROE and net margin are built on net income: skip them when it's one-off gains
+  const earningsReliable = !nonOperatingEarnings;
   const opMargin = financials.operatingMargin;
   const fcf = financials.freeCashFlow;
 
-  if (roe !== null) {
+  if (roe !== null && earningsReliable) {
     if (roe > industryBenchmarks.roe.good) {financialsScore += 1.5;}
     else if (roe > industryBenchmarks.roe.average) {financialsScore += 0.5;}
     else if (roe < industryBenchmarks.roe.poor) {financialsScore -= 2;}
   }
 
-  if (npm !== null) {
+  if (npm !== null && earningsReliable) {
     if (npm > industryBenchmarks.operatingMargin.good) {financialsScore += 1;}
     else if (npm < industryBenchmarks.operatingMargin.poor) {financialsScore -= 1.5;}
   }
@@ -111,9 +120,10 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
 
   // --- Valuation Score (0-10) ---
   let valuationScore = 5;
-  const pe = financials.peRatio ?? Infinity;
+  // P/E and PEG rest on earnings; when those are one-off gains they say nothing
+  const pe = nonOperatingEarnings ? Infinity : financials.peRatio ?? Infinity;
   const ps = financials.psRatio ?? Infinity;
-  const peg = financials.pegRatio ?? Infinity;
+  const peg = nonOperatingEarnings ? Infinity : financials.pegRatio ?? Infinity;
 
   if (pe !== Infinity && pe < industryBenchmarks.pe.cheap) {valuationScore += 2;}
   else if (pe !== Infinity && pe < industryBenchmarks.pe.fair) {valuationScore += 0.5;}
@@ -248,6 +258,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   if (financials.eps === null || financials.eps > 0) {coreInputs.push(['P/E', financials.peRatio]);}
   const missingData = coreInputs.filter(([, v]) => v === null).map(([name]) => name);
   if (currencyMismatch) {missingData.push('fair value (financials in a different currency)');}
+  if (nonOperatingEarnings) {missingData.push('fair value (profit not from operations)');}
 
   // Confidence: how far from the thresholds we are (50-95%),
   // minus a penalty per missing core input (floor 20%).
@@ -288,7 +299,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   const bullish: string[] = [];
   const bearish: string[] = [];
 
-  if (roe !== null && roe > industryBenchmarks.roe.good) {bullish.push(`Strong ROE of ${roe.toFixed(1)}%`);}
+  if (roe !== null && earningsReliable && roe > industryBenchmarks.roe.good) {bullish.push(`Strong ROE of ${roe.toFixed(1)}%`);}
   if (fcf !== null && fcf > 0) {bullish.push('Positive free cash flow');}
   if (peg !== Infinity && peg < 1) {bullish.push(`PEG ratio of ${peg.toFixed(2)} indicates undervaluation`);}
   if (cr !== null && cr > 2) {bullish.push(`Strong liquidity with current ratio of ${cr.toFixed(2)}`);}
@@ -315,6 +326,12 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     );
   }
 
+  if (nonOperatingEarnings) {
+    bearish.push(
+      `Profit comes from outside its operations (operating margin ${opMargin?.toFixed(1)}%), ` +
+        'e.g. investment gains — no fair value, and P/E is not used'
+    );
+  }
   if (fcf !== null && fcf <= 0) {bearish.push('Negative or zero free cash flow');}
   if (de !== Infinity && de > industryBenchmarks.debtToEquity.high) {bearish.push(`High debt/equity ratio of ${de.toFixed(2)}`);}
   if (cr !== null && cr < 1) {bearish.push(`Low current ratio of ${cr.toFixed(2)} — liquidity risk`);}

@@ -96,6 +96,7 @@ From daily closes:
 | Sector "Financial Services" (banks, insurers, brokers) | **P/B–ROE** (§5.5) |
 | Everyone else | **DCF** (§5.2–5.4) on free cash flow (`dcf-fcf`) or on earnings (`dcf-earnings`) |
 | Statements in another currency than the price (ADRs) | **none**: per-share values would be wrong |
+| Profitable, but operations lose money (operating margin ≤ 0 while net margin or EPS > 0), non-financials only | **none**: the profit is investment gains or one-offs (e.g. SoftBank Group), and valuing it would treat it as recurring (`hasNonOperatingEarnings`) |
 
 Then the **sanity cap** (§5.6).
 
@@ -162,6 +163,8 @@ Each sector has bands for P/E, P/S, operating margin, ROE and debt/equity. Looku
 | PEG | < 1 +1.5 · > 2 −1 |
 | Margin of safety vs fair value (§5) | see below |
 
+When the profit doesn't come from operations (§5.1), P/E and PEG are skipped (and ROE and net margin in Financials): they are built on those one-off earnings.
+
 Margin of safety (MoS) = (fair value − price) ÷ fair value, **minus the regime bonus** (§3.3). First matching step *(param `marginOfSafety`)*: > 40% +4 · > 25% +2.5 · > 10% +1 · < −30% −3 · < −10% −1.
 
 **Health**
@@ -205,10 +208,10 @@ The engine only runs its own simple FCF DCF when the caller gives no fair value 
 ### 6.6 Confidence (0–100)
 - Distance from the nearest threshold (4 or 7): 50 + 15 × distance, at most 95.
 - Minus 5 per missing core input (ROE, net margin, operating margin, FCF, current ratio, debt/equity, revenue growth, EPS growth, and P/E when EPS > 0), at least 20.
-- Missing inputs are listed in `verdict.missingData`; an ADR adds "fair value (financials in a different currency)".
+- Missing inputs are listed in `verdict.missingData`; an ADR adds "fair value (financials in a different currency)", and profit from outside operations adds "fair value (profit not from operations)".
 
 ### 6.7 Reasons
-Plain-language bullets for and against, from the same inputs: strong ROE, positive FCF, PEG < 1, liquidity, EPS growth, MoS > 20% / > 40% or price > 20% above fair value, price below the suggested entry, high debt, low current ratio, high P/E, falling EPS, and "Market caution: a BUY needs an extra N% discount" when the regime bonus applies.
+Plain-language bullets for and against, from the same inputs: strong ROE, positive FCF, PEG < 1, liquidity, EPS growth, MoS > 20% / > 40% or price > 20% above fair value, price below the suggested entry, high debt, low current ratio, high P/E, falling EPS, "Market caution: a BUY needs an extra N% discount" when the regime bonus applies, and "Profit comes from outside its operations…" for §5.1's no-value case (the "Strong ROE" reason is then skipped).
 
 ---
 

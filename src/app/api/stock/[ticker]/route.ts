@@ -105,6 +105,7 @@ export async function GET(
       sharesOutstanding: overview.sharesOutstanding,
       currencyMismatch: dcfAnalysis.currencyMismatch != null,
       requiredMosBonus: macroRegime.marginOfSafetyBonus / 100,
+      nonOperatingEarnings: fairValueEstimate.unavailableReason === 'non-operating-earnings',
     });
 
     // 8. Run individual investor lenses

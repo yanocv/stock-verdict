@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { estimateFairValue, pbRoeFairValue, isFinancialCompany } from './fairValue';
+import { estimateFairValue, pbRoeFairValue, isFinancialCompany, hasNonOperatingEarnings } from './fairValue';
 import { DEFAULT_ENGINE_PARAMS } from '@/lib/scoring/params';
 
 const { betaFloor, equityRiskPremium, sanityCap } = DEFAULT_ENGINE_PARAMS.dcf;
@@ -15,12 +15,12 @@ const industrial = { sector: 'Industrials', sharesOutstanding: 100 };
 describe('estimateFairValue', () => {
   it('passes the DCF value through when it agrees with earnings', () => {
     // EPS 10 × fair P/E 15 = 150; DCF 200 is under the 1.5× cap (225)
-    const fv = estimateFairValue({ overview: industrial, financials: { roe: 12, beta: 1, eps: 10 }, history: null, dcf: dcf(200), benchmarks });
-    expect(fv).toEqual({ value: 200, method: 'dcf-fcf', modelValue: 200, multiplesValue: 150, adjustment: null });
+    const fv = estimateFairValue({ overview: industrial, financials: { operatingMargin: 10, netProfitMargin: 8, roe: 12, beta: 1, eps: 10 }, history: null, dcf: dcf(200), benchmarks });
+    expect(fv).toEqual({ value: 200, method: 'dcf-fcf', modelValue: 200, multiplesValue: 150, adjustment: null, unavailableReason: null });
   });
 
   it('caps a DCF value far above what earnings support', () => {
-    const fv = estimateFairValue({ overview: industrial, financials: { roe: 12, beta: 1, eps: 10 }, history: null, dcf: dcf(600, 'earnings'), benchmarks });
+    const fv = estimateFairValue({ overview: industrial, financials: { operatingMargin: 10, netProfitMargin: 8, roe: 12, beta: 1, eps: 10 }, history: null, dcf: dcf(600, 'earnings'), benchmarks });
     expect(fv.value).toBe(150 * sanityCap);
     expect(fv.adjustment).toBe('capped');
     expect(fv.method).toBe('dcf-earnings');
@@ -28,19 +28,19 @@ describe('estimateFairValue', () => {
 
   // EPS can be inflated by one-off gains; raising would invent bargains
   it('keeps a DCF value below what earnings suggest', () => {
-    const fv = estimateFairValue({ overview: industrial, financials: { roe: 12, beta: 1, eps: 10 }, history: null, dcf: dcf(20), benchmarks });
+    const fv = estimateFairValue({ overview: industrial, financials: { operatingMargin: 10, netProfitMargin: 8, roe: 12, beta: 1, eps: 10 }, history: null, dcf: dcf(20), benchmarks });
     expect(fv.value).toBe(20);
     expect(fv.adjustment).toBeNull();
   });
 
   it('leaves the value unbounded when EPS is not positive', () => {
-    const fv = estimateFairValue({ overview: industrial, financials: { roe: -5, beta: 1, eps: -3 }, history: null, dcf: dcf(600), benchmarks });
+    const fv = estimateFairValue({ overview: industrial, financials: { operatingMargin: 10, netProfitMargin: 8, roe: -5, beta: 1, eps: -3 }, history: null, dcf: dcf(600), benchmarks });
     expect(fv.value).toBe(600);
     expect(fv.multiplesValue).toBeNull();
   });
 
   it('gives no value when the DCF has none', () => {
-    const fv = estimateFairValue({ overview: industrial, financials: { roe: 12, beta: 1, eps: 10 }, history: null, dcf: dcf(null, null), benchmarks });
+    const fv = estimateFairValue({ overview: industrial, financials: { operatingMargin: 10, netProfitMargin: 8, roe: 12, beta: 1, eps: 10 }, history: null, dcf: dcf(null, null), benchmarks });
     expect(fv.value).toBeNull();
     expect(fv.multiplesValue).toBe(150);
   });
@@ -48,7 +48,7 @@ describe('estimateFairValue', () => {
   it('gives no value for ADRs with financials in another currency', () => {
     const fv = estimateFairValue({
       overview: industrial,
-      financials: { roe: 12, beta: 1, eps: 10 },
+      financials: { operatingMargin: 10, netProfitMargin: 8, roe: 12, beta: 1, eps: 10 },
       history: null,
       dcf: { ...dcf(200), currencyMismatch: { price: 'USD', financial: 'TWD' } },
       benchmarks,
@@ -60,7 +60,7 @@ describe('estimateFairValue', () => {
     const history = { incomeAnnual: [], balanceAnnual: [{ period: '2026', endDate: '', shareholderEquity: 20_000 }] };
     const fv = estimateFairValue({
       overview: { sector: 'Financial Services', sharesOutstanding: 100 },
-      financials: { roe: 10, beta: 0.35, eps: 20 },
+      financials: { operatingMargin: 10, netProfitMargin: 8, roe: 10, beta: 0.35, eps: 20 },
       history,
       dcf: dcf(9_999),
       benchmarks,
@@ -101,5 +101,36 @@ describe('isFinancialCompany', () => {
   it('matches the Financial Services sector only', () => {
     expect(isFinancialCompany({ sector: 'Financial Services' })).toBe(true);
     expect(isFinancialCompany({ sector: 'Industrials' })).toBe(false);
+  });
+});
+
+describe('profit that does not come from operations (P15)', () => {
+  // SoftBank Group, Oct 2026: operating margin −11.5%, net margin +62%, EPS ¥859 from investment gains
+  const holding = { operatingMargin: -11.5, netProfitMargin: 61.6, roe: 32, beta: 0.93, eps: 859, forwardEps: 132, forwardEpsAnalysts: 8 };
+
+  it('is detected when operations lose money but the company reports a profit', () => {
+    expect(hasNonOperatingEarnings(holding)).toBe(true);
+    expect(hasNonOperatingEarnings({ operatingMargin: 12, netProfitMargin: 8, eps: 10 })).toBe(false);
+    expect(hasNonOperatingEarnings({ operatingMargin: -5, netProfitMargin: -9, eps: -2 })).toBe(false); // plain loss-maker
+    expect(hasNonOperatingEarnings({ operatingMargin: null, netProfitMargin: 8, eps: 10 })).toBe(false); // unknown → no claim
+  });
+
+  it('gives no fair value, with the reason', () => {
+    const fv = estimateFairValue({ overview: industrial, financials: holding, history: null, dcf: dcf(6835, 'earnings'), benchmarks });
+    expect(fv.value).toBeNull();
+    expect(fv.unavailableReason).toBe('non-operating-earnings');
+  });
+
+  it('does not apply to banks, which are valued on book value', () => {
+    const history = { incomeAnnual: [], balanceAnnual: [{ period: '2026', endDate: '', shareholderEquity: 20_000 }] };
+    const fv = estimateFairValue({
+      overview: { sector: 'Financial Services', sharesOutstanding: 100 },
+      financials: { ...holding, roe: 10 },
+      history,
+      dcf: dcf(null, null),
+      benchmarks,
+    });
+    expect(fv.method).toBe('pb-roe');
+    expect(fv.unavailableReason).toBeNull();
   });
 });

@@ -63,6 +63,7 @@ async function processTicker(
     sharesOutstanding: overview.sharesOutstanding,
     currencyMismatch: dcfAnalysis.currencyMismatch != null,
     requiredMosBonus,
+    nonOperatingEarnings: fairValue.unavailableReason === 'non-operating-earnings',
   });
 
   const upside =

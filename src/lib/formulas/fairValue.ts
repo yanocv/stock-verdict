@@ -30,6 +30,22 @@ export interface FairValueEstimate {
   multiplesValue: number | null;
   /** 'capped' when modelValue was above `dcf.sanityCap` × multiplesValue */
   adjustment: 'capped' | null;
+  /** Why no value is given on purpose (null when there is one, or the method just had no data) */
+  unavailableReason: 'currency-mismatch' | 'non-operating-earnings' | null;
+}
+
+/**
+ * True when a company reports a profit but its operations lose money, so the
+ * profit comes from investment gains, asset sales or other one-offs
+ * (SoftBank Group, Oct 2026: operating margin −11.5%, net margin +62%).
+ * Valuing those earnings would treat one-off gains as if they repeat.
+ */
+export function hasNonOperatingEarnings(
+  financials: Pick<FinancialMetrics, 'operatingMargin' | 'netProfitMargin' | 'eps'>
+): boolean {
+  const { operatingMargin, netProfitMargin, eps } = financials;
+  const profitable = (netProfitMargin !== null && netProfitMargin > 0) || (eps !== null && eps > 0);
+  return operatingMargin !== null && operatingMargin <= 0 && profitable;
 }
 
 /** Banks, insurers and other financials: cash flow isn't meaningful, book value is. */
@@ -86,18 +102,29 @@ export function pbRoeFairValue(input: {
  */
 export function estimateFairValue(input: {
   overview: Pick<StockOverview, 'sector' | 'sharesOutstanding'>;
-  financials: Pick<FinancialMetrics, 'roe' | 'beta' | 'eps' | 'forwardEps' | 'forwardEpsAnalysts'>;
+  financials: Pick<
+    FinancialMetrics,
+    'roe' | 'beta' | 'eps' | 'forwardEps' | 'forwardEpsAnalysts' | 'operatingMargin' | 'netProfitMargin'
+  >;
   history: Pick<FinancialHistory, 'incomeAnnual' | 'balanceAnnual'> | null | undefined;
   dcf: Pick<DCFAnalysis, 'baseCase' | 'cashFlowBasis' | 'riskFreeRate' | 'currencyMismatch'>;
   benchmarks: Pick<IndustryBenchmarks, 'pe'>;
 }): FairValueEstimate {
   const { overview, financials, history, dcf, benchmarks } = input;
-  const none: FairValueEstimate = { value: null, method: null, modelValue: null, multiplesValue: null, adjustment: null };
-  if (dcf.currencyMismatch) {return none;}
+  const none: FairValueEstimate = {
+    value: null, method: null, modelValue: null, multiplesValue: null, adjustment: null, unavailableReason: null,
+  };
+  if (dcf.currencyMismatch) {return { ...none, unavailableReason: 'currency-mismatch' };}
+
+  const financial = isFinancialCompany(overview);
+  // Banks are valued on book value, so their earnings mix doesn't matter here
+  if (!financial && hasNonOperatingEarnings(financials)) {
+    return { ...none, unavailableReason: 'non-operating-earnings' };
+  }
 
   let method: FairValueMethod | null;
   let modelValue: number | null;
-  if (isFinancialCompany(overview)) {
+  if (financial) {
     method = 'pb-roe';
     modelValue = pbRoeFairValue({
       financials,
@@ -116,6 +143,6 @@ export function estimateFairValue(input: {
 
   const cap = multiplesValue !== null ? multiplesValue * DCF_PARAMS.sanityCap : Infinity;
   return modelValue > cap
-    ? { value: cap, method, modelValue, multiplesValue, adjustment: 'capped' }
-    : { value: modelValue, method, modelValue, multiplesValue, adjustment: null };
+    ? { value: cap, method, modelValue, multiplesValue, adjustment: 'capped', unavailableReason: null }
+    : { value: modelValue, method, modelValue, multiplesValue, adjustment: null, unavailableReason: null };
 }
