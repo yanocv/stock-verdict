@@ -126,23 +126,23 @@ Status: `current` = in code today · `assumed` = proposed, not built · `validat
 
 | Name | US | JP | Status | Source / rationale | Where today |
 |---|---|---|---|---|---|
-| `weights.valuation` | 0.35 | 0.35 | current | GARP mode 1 priority | `verdictEngine.ts` |
-| `weights.financials` | 0.20 | 0.20 | current | | `verdictEngine.ts` |
-| `weights.health` | 0.20 | 0.20 | current | | `verdictEngine.ts` |
-| `weights.technical` | 0.12 | 0.12 | current | | `verdictEngine.ts` |
-| `weights.macro` | 0.07 | 0.07 | current → removed | becomes market layer | `verdictEngine.ts` |
-| `weights.news` | 0.06 | 0.06 | current → Expectations | | `verdictEngine.ts` |
-| `verdict.buyMin` | 7.0 | 7.0 | current | | `verdictEngine.ts` |
-| `verdict.avoidMax` | 4.0 | 4.0 | current | | `verdictEngine.ts` |
+| `weights.valuation` | 0.35 | 0.35 | current | GARP mode 1 priority | `params.ts` |
+| `weights.financials` | 0.20 | 0.20 | current | | `params.ts` |
+| `weights.health` | 0.20 | 0.20 | current | | `params.ts` |
+| `weights.technical` | 0.12 | 0.12 | current | | `params.ts` |
+| `weights.macro` | 0.07 | 0.07 | current → removed | becomes market layer | `params.ts` |
+| `weights.news` | 0.06 | 0.06 | current → Expectations | | `params.ts` |
+| `verdict.buyMin` | 7.0 | 7.0 | current | | `params.ts` |
+| `verdict.avoidMax` | 4.0 | 4.0 | current | | `params.ts` |
 | `verdict.hysteresis` | 0.3 | 0.3 | assumed | handoff §4 | — |
-| `mos.steps` | +4 / +2.5 / +1 at 40/25/10% below; −1 / −3 at 10/30% above | same | current | | `verdictEngine.ts` |
+| `mos.steps` | +4 / +2.5 / +1 at 40/25/10% below; −1 / −3 at 10/30% above | same | current | | `params.ts` |
 | `mos.base` (BUY minimum) | 20% | 20% | assumed | INVESTMENT_PHILOSOPHY mode 1 | — |
 | `mos.regimeBonus` | 0 / +5 / +10% | same | current (not applied) | risk-on / neutral / risk-off | `macroRegime.ts` |
-| `suggestedBuy.factor` | 0.75 × fair value | same | current | | `verdictEngine.ts` |
-| `dcf.riskFree` | 4.5% | live JGB 10Y, fallback 2% | current (US) / decided (JP) | owner decision 2026-10-25 | `dcfAdvanced.ts` |
-| `dcf.equityRiskPremium` | 5.5% | 5.5% | current | | `dcfAdvanced.ts` |
-| `dcf.terminalGrowth` | 3% | **to review** | current | | `dcfAdvanced.ts` |
-| `dcf.growthClamp` | −5% … +15%, fading to terminal by year 10 | same | current | median of FCF CAGR, revenue CAGR, EPS growth | `dcfAdvanced.ts` |
+| `suggestedBuy.factor` | 0.75 × fair value | same | current | | `params.ts` |
+| `dcf.riskFree` | 4.5% | live JGB 10Y, fallback 2% | current (US) / decided (JP) | owner decision 2026-10-25 | `params.ts` |
+| `dcf.equityRiskPremium` | 5.5% | 5.5% | current | | `params.ts` |
+| `dcf.terminalGrowth` | 3% | **to review** | current | | `params.ts` |
+| `dcf.growthClamp` | −5% … +15%, fading to terminal by year 10 | same | current | median of FCF CAGR, revenue CAGR, EPS growth | `params.ts` |
 | `quality.min` (mode 1) | 4.5 | 4.0 | assumed | | — |
 | `quality.min` (mode 2) | 7.0 | 6.5 | assumed | | — |
 | `quality.strong` | 7.0 | 6.5 | assumed | risk-off BUY requirement | — |
@@ -167,7 +167,7 @@ Status: `current` = in code today · `assumed` = proposed, not built · `validat
 
 ## 7. Build order once approved
 
-1. `params.ts` with today's values only (pure refactor, tests unchanged) → `verdictEngine.ts` reads from it.
+1. ~~`params.ts` with today's values only~~ — done 2026-10-25 (weights, thresholds, MoS steps, confidence, DCF defaults; per-metric steps still inline).
 2. Verdict log (ticker, date, inputs, scores, verdict) — needed by hysteresis and the backtest.
 3. Backtest harness + fixtures: TDK Oct 2026 peak, MHI/KHI 2026 decline, Nikkei Oct 2026 drop.
 4. Split into Quality / Value / Expectations and add gates 0–3 behind a flag; compare old vs new verdicts on the fixture set and on the Nikkei universe before switching.

@@ -9,9 +9,8 @@ import type { IndustryBenchmarks } from '@/lib/benchmarks/industries';
 import type { TechnicalIndicators } from '@/types/technicals';
 import { classifyLynchCategory } from '@/lib/classifiers/lynchCategory';
 import { dcfFairValue } from '@/lib/formulas/valuation';
-
-/** Confidence points removed per missing core input. */
-const MISSING_INPUT_CONFIDENCE_PENALTY = 5;
+import type { EngineParams } from './params';
+import { DEFAULT_ENGINE_PARAMS } from './params';
 
 export interface VerdictEngineParams {
   financials: FinancialMetrics;
@@ -38,6 +37,8 @@ export interface VerdictEngineParams {
    * Skips the fallback DCF, whose per-share value would be wrong.
    */
   currencyMismatch?: boolean;
+  /** Weights and thresholds; defaults to DEFAULT_ENGINE_PARAMS (override for backtests). */
+  engineParams?: EngineParams;
 }
 
 /**
@@ -49,7 +50,7 @@ export interface VerdictEngineParams {
  * - Macro:       7%
  * - News:        6%
  *
- * Score > 7 = BUY, 4–7 = WAIT, < 4 = AVOID
+ * Score > 7 = BUY, 4–7 = WAIT, < 4 = AVOID (thresholds and weights in params.ts)
  *
  * Key fix: when dcfFairValuePerShare is provided, the margin of safety
  * is incorporated directly into the valuation score. A stock trading
@@ -67,6 +68,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     dcfFairValuePerShare,
     sharesOutstanding = 1,
     currencyMismatch = false,
+    engineParams: p = DEFAULT_ENGINE_PARAMS,
   } = params;
 
   // Missing fields (null) leave a score unchanged instead of counting as zero:
@@ -121,11 +123,11 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   let mosPercent: number | null = null;
   if (dcfFairValuePerShare !== null && dcfFairValuePerShare !== undefined && dcfFairValuePerShare > 0 && price > 0) {
     mosPercent = (dcfFairValuePerShare - price) / dcfFairValuePerShare;
-    if (mosPercent > 0.40) {valuationScore += 4;}       // >40% below fair value — massive undervaluation
-    else if (mosPercent > 0.25) {valuationScore += 2.5;} // >25% below fair value — significant discount
-    else if (mosPercent > 0.10) {valuationScore += 1;}   // >10% below fair value — moderate discount
-    else if (mosPercent < -0.30) {valuationScore -= 3;}  // >30% above fair value — materially overvalued
-    else if (mosPercent < -0.10) {valuationScore -= 1;}  // >10% above fair value — moderately overvalued
+    const mos = mosPercent;
+    const step =
+      p.marginOfSafety.above.find((s) => mos > s.mos) ??
+      p.marginOfSafety.below.find((s) => mos < s.mos);
+    if (step) {valuationScore += step.points;}
   }
 
   valuationScore = Math.max(0, Math.min(10, valuationScore));
@@ -197,15 +199,15 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   const newsScore = newsScoreInput ?? 5;
 
   // --- Weighted Overall Score ---
-  // GARP Mode 1 (Value Hunter): valuation is the highest priority
-  // Weights: Valuation 35% | Financials 20% | Health 20% | Technical 12% | Macro 7% | News 6%
+  // GARP Mode 1 (Value Hunter): valuation is the highest priority (weights in params.ts)
+  const w = p.weights;
   const overall =
-    financialsScore * 0.20 +
-    valuationScore  * 0.35 +
-    healthScore     * 0.20 +
-    technicalScore  * 0.12 +
-    macroScore      * 0.07 +
-    newsScore       * 0.06;
+    financialsScore * w.financials +
+    valuationScore  * w.valuation +
+    healthScore     * w.health +
+    technicalScore  * w.technical +
+    macroScore      * w.macro +
+    newsScore       * w.news;
 
   const scores: VerdictScore = {
     overall: Math.round(overall * 10) / 10,
@@ -218,7 +220,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   };
 
   const recommendation: VerdictRecommendation =
-    overall > 7 ? 'BUY' : overall >= 4 ? 'WAIT' : 'AVOID';
+    overall > p.verdict.buyMin ? 'BUY' : overall >= p.verdict.avoidMax ? 'WAIT' : 'AVOID';
 
   // Core inputs whose absence makes the verdict less certain.
   // P/E is absent by definition for loss-makers, so only count it when EPS > 0.
@@ -237,36 +239,37 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   if (currencyMismatch) {missingData.push('fair value (financials in a different currency)');}
 
   // Confidence: how far from the thresholds we are (50-95%),
-  // minus 5 points per missing core input (floor 20%).
-  const distanceFromWait = Math.abs(overall - 4);
-  const distanceFromBuy = Math.abs(overall - 7);
+  // minus a penalty per missing core input (floor 20%).
+  const c = p.confidence;
+  const distanceFromWait = Math.abs(overall - p.verdict.avoidMax);
+  const distanceFromBuy = Math.abs(overall - p.verdict.buyMin);
   const minDistance = Math.min(distanceFromWait, distanceFromBuy);
-  const distanceConfidence = Math.min(50 + minDistance * 15, 95);
-  const confidence = Math.round(Math.max(20, distanceConfidence - missingData.length * MISSING_INPUT_CONFIDENCE_PENALTY));
+  const distanceConfidence = Math.min(c.base + minDistance * c.perScorePoint, c.max);
+  const confidence = Math.round(Math.max(c.floor, distanceConfidence - missingData.length * c.missingInputPenalty));
 
   // Fallback fair value via simple DCF (display only, when no advanced DCF is given)
-  const DEFAULT_EPS_GROWTH_RATE = 5;
-  const MIN_DCF_GROWTH_RATE = 0.02;
-  const MAX_DCF_GROWTH_RATE = 0.15;
-
+  const f = p.fallbackDcf;
   let fairValue: number | null = null;
   if (!currencyMismatch && fcf !== null && fcf > 0) {
     fairValue = dcfFairValue({
       freeCashFlow: fcf,
       growthRate: Math.min(
-        Math.max((financials.epsGrowth ?? DEFAULT_EPS_GROWTH_RATE) / 100, MIN_DCF_GROWTH_RATE),
-        MAX_DCF_GROWTH_RATE
+        Math.max((financials.epsGrowth ?? f.defaultEpsGrowthPct) / 100, f.minGrowth),
+        f.maxGrowth
       ),
-      discountRate: 0.09,
-      terminalGrowthRate: 0.03,
+      discountRate: f.discountRate,
+      terminalGrowthRate: f.terminalGrowth,
       sharesOutstanding: sharesOutstanding > 0 ? sharesOutstanding : 1,
-      projectionYears: 10,
+      projectionYears: f.projectionYears,
     });
   }
 
   // Prefer the more accurate advanced DCF fair value when available
   const displayFairValue = dcfFairValuePerShare ?? fairValue;
-  const suggestedBuyPrice = displayFairValue !== null ? displayFairValue * 0.75 : price * 0.85;
+  const suggestedBuyPrice =
+    displayFairValue !== null
+      ? displayFairValue * p.suggestedBuy.fairValueFactor
+      : price * p.suggestedBuy.noFairValuePriceFactor;
 
   // Reasons
   const bullish: string[] = [];
@@ -290,7 +293,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   }
 
   // Price vs suggested buy price
-  if (displayFairValue !== null && price < displayFairValue * 0.75) {
+  if (displayFairValue !== null && price < displayFairValue * p.suggestedBuy.fairValueFactor) {
     bullish.push('Current price already below our suggested entry level');
   }
 

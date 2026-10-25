@@ -6,29 +6,32 @@ import type {
   SensitivityCell,
   StockOverview,
 } from '@/types';
+import { DEFAULT_ENGINE_PARAMS } from '@/lib/scoring/params';
+
+const DCF_PARAMS = DEFAULT_ENGINE_PARAMS.dcf;
 
 /**
  * Default equity risk premium (Damodaran global estimate).
  * Used when no custom ERP is provided.
  */
-export const DEFAULT_EQUITY_RISK_PREMIUM = 0.055; // 5.5%
+export const DEFAULT_EQUITY_RISK_PREMIUM = DCF_PARAMS.equityRiskPremium; // 5.5%
 
 /**
  * Default risk-free rate fallback when no live 10Y treasury data is available.
  */
-export const DEFAULT_RISK_FREE_RATE = 0.045; // 4.5%
+export const DEFAULT_RISK_FREE_RATE = DCF_PARAMS.riskFreeRate; // 4.5%
 
 /**
  * Terminal growth rate for the Gordon Growth Model exit.
  */
-export const DEFAULT_TERMINAL_GROWTH_RATE = 0.03; // 3%
+export const DEFAULT_TERMINAL_GROWTH_RATE = DCF_PARAMS.terminalGrowth; // 3%
 
 /** Growth clamp for the first projection year (growth then fades to terminal). */
-export const MAX_GROWTH_RATE = 0.15;
-export const MIN_GROWTH_RATE = -0.05;
+export const MAX_GROWTH_RATE = DCF_PARAMS.maxGrowth;
+export const MIN_GROWTH_RATE = DCF_PARAMS.minGrowth;
 
 /** Growth assumed when no history or estimate is available. */
-export const DEFAULT_GROWTH_RATE = 0.05;
+export const DEFAULT_GROWTH_RATE = DCF_PARAMS.defaultGrowth;
 
 /**
  * Present value of projected FCF plus terminal value.
