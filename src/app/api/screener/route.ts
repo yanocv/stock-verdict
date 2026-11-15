@@ -8,6 +8,7 @@ import { getBenchmarksForSector } from '@/lib/benchmarks/industries';
 import { NIKKEI_UNIVERSE } from '@/lib/screener/nikkeiUniverse';
 import { runAdvancedDCFForStock } from '@/lib/formulas/dcfAdvanced';
 import { estimateFairValue } from '@/lib/formulas/fairValue';
+import { completeBalanceSheet } from '@/lib/formulas/balanceSheet';
 import { fetchFinancialHistory } from '@/lib/services/financialHistoryService';
 
 export interface ScreenerResult {
@@ -46,7 +47,8 @@ async function processTicker(
 ): Promise<ScreenerResult> {
   // History is needed so screener fair values match the full analysis
   const [stockData, history] = await Promise.all([fetchStockData(ticker), fetchFinancialHistory(ticker)]);
-  const { overview, financials, balanceSheet } = stockData;
+  const { overview, financials } = stockData;
+  const balanceSheet = completeBalanceSheet(stockData.balanceSheet, history);
   const benchmarks = getBenchmarksForSector(overview.sector || sector, overview.industry);
   const dcfAnalysis = runAdvancedDCFForStock(overview, financials, balanceSheet, history, macroData);
   const fairValue = estimateFairValue({ overview, financials, history, dcf: dcfAnalysis, benchmarks });

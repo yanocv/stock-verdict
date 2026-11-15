@@ -27,7 +27,8 @@ Tickers: four digits (`7203`) become Tokyo tickers (`7203.T`).
 
 | Data | Source | File |
 |---|---|---|
-| Price, ratios (P/E, ROE, margins…), balance sheet snapshot | Yahoo Finance `quoteSummary` | `services/yahooFinance.ts` |
+| Price, ratios (P/E, ROE, margins…), total debt, cash, analyst EPS estimate | Yahoo Finance `quoteSummary` | `services/yahooFinance.ts` |
+| Balance sheet (equity, assets, liabilities, retained earnings) | Latest quarterly or annual statement, whichever is newer (`completeBalanceSheet`). Yahoo's snapshot has returned no balance sheet since Nov 2024; debt and cash from the snapshot are kept when present | `formulas/balanceSheet.ts` |
 | Annual and quarterly statements (income, balance, cash flow) | Yahoo Finance time series | `services/financialHistoryService.ts` |
 | Daily prices (5 years) | Yahoo Finance | `financialHistoryService.ts` `fetchPriceHistory` |
 | VIX, S&P 500, Nikkei 225, USD/JPY, US 10Y (`^TNX`), oil, gold | Yahoo Finance quotes | `services/macroService.ts` |
@@ -230,10 +231,10 @@ Plain-language bullets for and against, from the same inputs: strong ROE, positi
 Any hard fail → REJECT; any soft fail → INVESTIGATE; else ALL_PASS. Owner decision (ENGINE_SPEC §8.2) is to make it gate the verdict; not built yet.
 
 **Investor lenses** (cards only):
-- **Buffett** ([`buffettScore.ts`](../src/lib/scoring/buffettScore.ts)): 6 checks (ROE > 15%, D/E < 0.5, EPS > 0, net margin > 10%, FCF > 0, operating margin > 15%); fair value from a simple DCF; buy below 75% of it. ≥ 5 BUY, ≥ 3 WAIT.
-- **Graham** ([`grahamScore.ts`](../src/lib/scoring/grahamScore.ts)): 6 checks (P/E < 15, P/B < 1.5, P/E × P/B < 22.5, current ratio > 2, EPS > 0, pays dividends); fair value = Graham number √(22.5 × EPS × book value per share). ≥ 5 BUY, ≥ 3 WAIT.
+- **Buffett** ([`buffettScore.ts`](../src/lib/scoring/buffettScore.ts)): 6 checks (ROE > 15%, D/E < 0.5, EPS > 0, net margin > 10%, FCF > 0, operating margin > 15%). Its fair value **is the verdict's fair value** (§5), so the card can't contradict the headline; buy below 75% of it. ≥ 5 BUY, ≥ 3 WAIT.
+- **Graham** ([`grahamScore.ts`](../src/lib/scoring/grahamScore.ts)): 6 checks (P/E < 15, P/B < 1.5, P/E × P/B < 22.5, current ratio > 2, EPS > 0, pays dividends); fair value = Graham number √(22.5 × EPS × book value per share), where book value per share = shareholder equity ÷ shares (price ÷ P/B if equity is missing). ≥ 5 BUY, ≥ 3 WAIT.
 - **Lynch** ([`lynchScore.ts`](../src/lib/scoring/lynchScore.ts)): 5 checks (PEG < 1, D/E < 0.33, EPS growth > 0, P/E < EPS growth, FCF > 0); fair value = EPS × growth (PEG 1). ≥ 4 BUY, ≥ 2 WAIT.
 
-Known issue: the balance-sheet snapshot currently returns shareholder equity 0 for every ticker (ENGINE_SPEC §9 P10), so the Buffett fair value and Graham's book value are often missing.
+All three lens fair values are hidden when the verdict has none on purpose (ADR currency mismatch, or profit not from operations).
 
 **AI summary** ([`services/claudeService.ts`](../src/lib/services/claudeService.ts)): written by Claude from the numbers above, in the user's language. Skipped without `ANTHROPIC_API_KEY`. It never changes a score.

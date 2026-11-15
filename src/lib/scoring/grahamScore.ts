@@ -8,10 +8,10 @@ import { grahamNumber } from '@/lib/formulas/valuation';
 export function evaluateGraham(
   metrics: FinancialMetrics,
   balanceSheet: BalanceSheet,
-  priceData: { currentPrice: number }
+  priceData: { currentPrice: number; sharesOutstanding?: number }
 ): InvestorVerdict {
   const checks: InvestorCheck[] = [];
-  const { currentPrice } = priceData;
+  const { currentPrice, sharesOutstanding = 0 } = priceData;
 
   // 1. P/E < 15
   const pe = metrics.peRatio ?? Infinity;
@@ -74,10 +74,14 @@ export function evaluateGraham(
   });
 
   // Calculate Graham Number as fair value
+  // Book value per share: equity ÷ shares, else price ÷ P/B
+  const priceToBook = metrics.pbRatio;
   const bvps =
-    balanceSheet.shareholderEquity > 0
-      ? balanceSheet.shareholderEquity
-      : null;
+    balanceSheet.shareholderEquity > 0 && sharesOutstanding > 0
+      ? balanceSheet.shareholderEquity / sharesOutstanding
+      : priceToBook !== null && priceToBook > 0 && currentPrice > 0
+        ? currentPrice / priceToBook
+        : null;
   const fairValue = eps > 0 && bvps !== null ? grahamNumber(eps, bvps) : null;
   const buyBelow = fairValue !== null ? Math.min(fairValue, currentPrice * 0.8) : null;
 

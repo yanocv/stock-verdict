@@ -16,6 +16,7 @@ import { generateAINarrative } from '@/lib/services/claudeService';
 import { calculateRSI, classifyRSI, calculateSMA, extractCloses } from '@/lib/formulas/rsi';
 import { runAdvancedDCFForStock } from '@/lib/formulas/dcfAdvanced';
 import { estimateFairValue } from '@/lib/formulas/fairValue';
+import { completeBalanceSheet } from '@/lib/formulas/balanceSheet';
 import type { StockVerdictResponse, TechnicalIndicators } from '@/types';
 
 export async function GET(
@@ -44,7 +45,9 @@ export async function GET(
       fetchPriceHistory(normalizedTicker),
     ]);
 
-    const { overview, financials, balanceSheet, incomeStatement, calendarData, analystConsensus } = stockData;
+    const { overview, financials, incomeStatement, calendarData, analystConsensus } = stockData;
+    // Yahoo's snapshot has no balance sheet any more; take it from the statements
+    const balanceSheet = completeBalanceSheet(stockData.balanceSheet, financialHistory);
 
     // 2. Score macro and news
     const macroScore = scoreMacro(macroData);
@@ -112,18 +115,19 @@ export async function GET(
     const buffett = evaluateBuffett(financials, balanceSheet);
     const graham = evaluateGraham(financials, balanceSheet, {
       currentPrice: overview.currentPrice,
+      sharesOutstanding: overview.sharesOutstanding,
     });
     const lynch = evaluateLynch(financials, balanceSheet);
 
-    // 9. Fix Buffett per-share values using real shares outstanding
-    if (overview.sharesOutstanding > 1 && buffett.fairValue !== null) {
-      buffett.fairValue = buffett.fairValue / overview.sharesOutstanding;
-      buffett.buyBelow = buffett.fairValue * 0.75;
-    }
+    // 9. Buffett's intrinsic value is the verdict's fair value: one cash-flow
+    // estimate for the whole page, instead of a second DCF on Yahoo's TTM FCF
+    buffett.fairValue = fairValueEstimate.value;
+    buffett.buyBelow = fairValueEstimate.value !== null ? fairValueEstimate.value * 0.75 : null;
 
-    // Lens fair values come from statement amounts — meaningless when the
-    // statements use a different currency than the price (ADRs)
-    if (dcfAnalysis.currencyMismatch) {
+    // Lens fair values come from statement amounts and earnings — meaningless
+    // when the statements use another currency than the price (ADRs) or the
+    // profit doesn't come from operations
+    if (fairValueEstimate.unavailableReason !== null) {
       for (const lens of [buffett, graham, lynch]) {
         lens.fairValue = null;
         lens.buyBelow = null;

@@ -105,9 +105,9 @@ describe('evaluateGraham', () => {
     expect(pbCheck?.value).toBe('N/A');
   });
 
-  it('returns null fairValue when shareholderEquity is zero', () => {
+  it('returns null fairValue when there is no book value at all (no equity, no P/B)', () => {
     const zeroEquitySheet: BalanceSheet = { ...balanceSheet, shareholderEquity: 0 };
-    const result = evaluateGraham(grahamFriendlyMetrics, zeroEquitySheet, { currentPrice: 60 });
+    const result = evaluateGraham({ ...grahamFriendlyMetrics, pbRatio: null }, zeroEquitySheet, { currentPrice: 60 });
     expect(result.fairValue).toBeNull();
     expect(result.buyBelow).toBeNull();
   });
@@ -123,5 +123,19 @@ describe('evaluateGraham', () => {
     const result = evaluateGraham(nullBoth, balanceSheet, { currentPrice: 60 });
     const combinedCheck = result.checks.find((c) => c.label === 'P/E × P/B < 22.5');
     expect(combinedCheck?.value).toBe('N/A');
+  });
+});
+
+describe('Graham number uses book value per share', () => {
+  it('divides equity by shares outstanding', () => {
+    // Equity 3,000,000 ÷ 100,000 shares = BVPS 30; EPS 5 → √(22.5 × 5 × 30) ≈ 58.09
+    const result = evaluateGraham(grahamFriendlyMetrics, balanceSheet, { currentPrice: 60, sharesOutstanding: 100_000 });
+    expect(result.fairValue).toBeCloseTo(Math.sqrt(22.5 * grahamFriendlyMetrics.eps! * (balanceSheet.shareholderEquity / 100_000)), 6);
+  });
+
+  it('falls back to price ÷ P/B without a share count', () => {
+    const result = evaluateGraham(grahamFriendlyMetrics, { ...balanceSheet, shareholderEquity: 0 }, { currentPrice: 60 });
+    const bvps = 60 / grahamFriendlyMetrics.pbRatio!;
+    expect(result.fairValue).toBeCloseTo(Math.sqrt(22.5 * grahamFriendlyMetrics.eps! * bvps), 6);
   });
 });

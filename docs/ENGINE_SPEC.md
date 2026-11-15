@@ -214,7 +214,7 @@ Owner goal: one model that uses everything that matters (company numbers, valuat
 - P8 fixed 2026-10-25 (`formulas/fairValue.ts`): cash-flow base averaged over 4 years; earnings after reinvestment when FCF ÷ earnings is outside 0.5–1.5 (no net-debt subtraction on that basis); P/B–ROE for Financial Services; beta floor 0.8; fair value capped at 1.5 × EPS × sector fair P/E (cap only; raising invented bargains, e.g. SoftBank). Details in [CALCULATIONS.md](CALCULATIONS.md) §5.
 - P9 fixed 2026-10-25: `resolveSectorKey` maps Yahoo industry first, then sector, then sector alias, for both tables. Industrials and Basic Materials still have no own set.
 - P8 revised 2026-10-25 after the owner flagged MHI (¥1,892 looked too low): cash flow now starts from current earnings (trailing EPS blended 50/50 with the analysts' current-year estimate, ≥ 3 analysts) × usual cash conversion, instead of a 4-year FCF average; analysts' expected growth joins the growth median; Industrials and Basic Materials bands added; verdict decided on the displayed (rounded) score. MHI → ¥2,669.
-- P10 open.
+- P10 fixed 2026-11-15: `completeBalanceSheet` fills the snapshot from the newest statement period. Two bugs it had been hiding are fixed with it: the Graham lens used total equity as book value *per share*, and the Buffett lens ran its own DCF on Yahoo's unreliable TTM free cash flow (it now shows the verdict's fair value).
 - Data to verify: Yahoo data for 8766.T (Tokio Marine) looked inconsistent on 2026-10-25 (price ¥572, 28.2 B shares).
 
 ### 9.2 Factor map
@@ -302,7 +302,7 @@ Status: all approved 2026-10-25 (§10.4). Not built yet.
 | # | Step | Principles | Status |
 |---|---|---|---|
 | 1 | §9 P1–P3, P8, P9; MHI fair-value revision; conservative growth (clip + shrink) and conversion cap | 1, 4 | **Done** 2026-10-25 |
-| 2 | P10: shareholder equity from statement history | — | Next |
+| 2 | P10: shareholder equity from statement history | — | **Done** 2026-11-15 |
 | 2b | P15: no fair value when earnings don't come from operations (operating margin ≤ 0 while profitable); P/E, PEG, ROE and net margin not scored; reason shown. Holding companies would need net asset value (holdings − net debt), which our data lacks | 1 | **Done** 2026-10-25 (owner approved). SoftBank: no fair value, WAIT 6.3 → 4.6 |
 | 3 | P11: Japan cost of equity from TOPIX | 1 | Approved |
 | 4 | P12 + P13 + P14: bear/base/bull values, reward-to-risk gate, uncertainty-scaled margin of safety | 1, 2, 5 | Approved |
