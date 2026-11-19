@@ -25,6 +25,7 @@
   "confidence": "Confiança",
   "missingData": "Dados ausentes (reduz a confiança): {fields}",
   "fairValue": "Valor Justo",
+  "fairValueRange": "Faixa (pessimista – otimista)",
   "buyBelow": "Comprar Abaixo de",
   "analysis": "Análise",
   "bullish": "Otimista",

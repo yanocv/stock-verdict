@@ -39,7 +39,7 @@ describe('generateVerdict with engineParams override', () => {
       ...base,
       engineParams: {
         ...DEFAULT_ENGINE_PARAMS,
-        verdict: { buyMin: normal.scores.overall - 0.5, avoidMax: 1 },
+        verdict: { ...DEFAULT_ENGINE_PARAMS.verdict, buyMin: normal.scores.overall - 0.5, avoidMax: 1 },
       },
     });
     expect(lowBar.recommendation).toBe('BUY');

@@ -50,6 +50,10 @@ export interface VerdictEngineParams {
    * on those earnings, and the missing fair value is explained.
    */
   nonOperatingEarnings?: boolean;
+  /** True when the fair value is estimated from earnings or was capped: a BUY needs an extra discount (P14) */
+  uncertainValue?: boolean;
+  /** Bear-case fair value per share (estimateFairValue().bear); the downside for the reward-to-risk check */
+  bearFairValuePerShare?: number | null;
   /** Weights and thresholds; defaults to DEFAULT_ENGINE_PARAMS (override for backtests). */
   engineParams?: EngineParams;
 }
@@ -83,8 +87,30 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     currencyMismatch = false,
     requiredMosBonus = 0,
     nonOperatingEarnings = false,
+    uncertainValue = false,
+    bearFairValuePerShare = null,
     engineParams: p = DEFAULT_ENGINE_PARAMS,
   } = params;
+
+  // Core inputs whose absence makes the verdict less certain.
+  // P/E is absent by definition for loss-makers, so only count it when EPS > 0.
+  const coreInputs: Array<[string, number | null]> = [
+    ['ROE', financials.roe],
+    ['net margin', financials.netProfitMargin],
+    ['operating margin', financials.operatingMargin],
+    ['free cash flow', financials.freeCashFlow],
+    ['current ratio', financials.currentRatio],
+    ['debt/equity', financials.debtToEquity],
+    ['revenue growth', financials.revenueGrowth],
+    ['EPS growth', financials.epsGrowth],
+  ];
+  if (financials.eps === null || financials.eps > 0) {coreInputs.push(['P/E', financials.peRatio]);}
+  const missingData = coreInputs.filter(([, v]) => v === null).map(([name]) => name);
+
+  // Discount a BUY needs on top of the base steps: the market regime's bonus,
+  // plus more when the fair value itself is shaky (P14)
+  const valueUncertain = uncertainValue || missingData.length >= p.marginOfSafety.uncertainMissingInputs;
+  const mosBonus = requiredMosBonus + (valueUncertain ? p.marginOfSafety.uncertaintyBonus : 0);
 
   // Missing fields (null) leave a score unchanged instead of counting as zero:
   // "no data" is not the same as "bad data". They lower confidence instead.
@@ -142,7 +168,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   if (dcfFairValuePerShare !== null && dcfFairValuePerShare !== undefined && dcfFairValuePerShare > 0 && price > 0) {
     mosPercent = (dcfFairValuePerShare - price) / dcfFairValuePerShare;
     // A cautious market asks for a bigger discount before the same points apply
-    const mos = mosPercent - requiredMosBonus;
+    const mos = mosPercent - mosBonus;
     const step =
       p.marginOfSafety.above.find((s) => mos > s.mos) ??
       p.marginOfSafety.below.find((s) => mos < s.mos);
@@ -240,23 +266,22 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
 
   // Decide on the score the user sees (one decimal), so "AVOID 4.0" can't happen
   const shown = scores.overall;
-  const recommendation: VerdictRecommendation =
+  const byScore: VerdictRecommendation =
     shown > p.verdict.buyMin ? 'BUY' : shown >= p.verdict.avoidMax ? 'WAIT' : 'AVOID';
 
-  // Core inputs whose absence makes the verdict less certain.
-  // P/E is absent by definition for loss-makers, so only count it when EPS > 0.
-  const coreInputs: Array<[string, number | null]> = [
-    ['ROE', roe],
-    ['net margin', npm],
-    ['operating margin', opMargin],
-    ['free cash flow', fcf],
-    ['current ratio', cr],
-    ['debt/equity', financials.debtToEquity],
-    ['revenue growth', revenueGrowth],
-    ['EPS growth', epsGrowth],
-  ];
-  if (financials.eps === null || financials.eps > 0) {coreInputs.push(['P/E', financials.peRatio]);}
-  const missingData = coreInputs.filter(([, v]) => v === null).map(([name]) => name);
+  // Reward-to-risk (P13): upside to fair value vs the downside, which is the
+  // larger of the drop to the bear value and the stop-loss (you risk at least
+  // your stop, even when the bear value is just under or above the price)
+  const fairForRatio = dcfFairValuePerShare !== undefined ? dcfFairValuePerShare : null;
+  let rewardToRisk: number | null = null;
+  if (fairForRatio !== null && price > 0) {
+    const stopPrice = price * (1 - p.verdict.stopLossPct);
+    const downsideTo = bearFairValuePerShare !== null ? Math.min(bearFairValuePerShare, stopPrice) : stopPrice;
+    rewardToRisk = Math.round(((fairForRatio - price) / (price - downsideTo)) * 10) / 10;
+  }
+  const failsRewardToRisk = rewardToRisk !== null && rewardToRisk < p.verdict.minRewardToRisk;
+  const recommendation: VerdictRecommendation = byScore === 'BUY' && failsRewardToRisk ? 'WAIT' : byScore;
+
   if (currencyMismatch) {missingData.push('fair value (financials in a different currency)');}
   if (nonOperatingEarnings) {missingData.push('fair value (profit not from operations)');}
 
@@ -289,7 +314,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   // A given fair value wins, including null ("no reliable fair value"):
   // the simple fallback above only serves callers that don't estimate one.
   const displayFairValue = dcfFairValuePerShare !== undefined ? dcfFairValuePerShare : fairValue;
-  const entryFactor = p.suggestedBuy.fairValueFactor - requiredMosBonus;
+  const entryFactor = p.suggestedBuy.fairValueFactor - mosBonus;
   const suggestedBuyPrice =
     displayFairValue !== null
       ? displayFairValue * entryFactor
@@ -298,6 +323,15 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   // Reasons
   const bullish: string[] = [];
   const bearish: string[] = [];
+
+  if (rewardToRisk !== null) {
+    const min = p.verdict.minRewardToRisk;
+    if (byScore === 'BUY' && failsRewardToRisk) {
+      bearish.push(`Upside vs downside is ${rewardToRisk.toFixed(1)} : 1, below ${min} : 1 — WAIT instead of BUY`);
+    } else if (rewardToRisk >= min) {
+      bullish.push(`Upside vs downside is ${rewardToRisk.toFixed(1)} : 1`);
+    }
+  }
 
   if (roe !== null && earningsReliable && roe > industryBenchmarks.roe.good) {bullish.push(`Strong ROE of ${roe.toFixed(1)}%`);}
   if (fcf !== null && fcf > 0) {bullish.push('Positive free cash flow');}
@@ -323,6 +357,12 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   if (requiredMosBonus > 0 && displayFairValue !== null) {
     bearish.push(
       `Market caution: a BUY needs an extra ${Math.round(requiredMosBonus * 100)}% discount to fair value`
+    );
+  }
+  if (valueUncertain && displayFairValue !== null) {
+    const why = uncertainValue ? 'estimated from earnings or capped' : 'key data missing';
+    bearish.push(
+      `Fair value is less certain (${why}): a BUY needs an extra ${Math.round(p.marginOfSafety.uncertaintyBonus * 100)}% discount`
     );
   }
 
@@ -354,5 +394,6 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     reasons: { bullish, bearish },
     lynchCategory,
     missingData,
+    rewardToRisk,
   };
 }

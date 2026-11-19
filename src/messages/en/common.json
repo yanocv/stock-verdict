@@ -25,6 +25,7 @@
   "confidence": "Confidence",
   "missingData": "Missing data (lowers confidence): {fields}",
   "fairValue": "Fair Value",
+  "fairValueRange": "Range (bear – bull)",
   "buyBelow": "Buy Below",
   "analysis": "Analysis",
   "bullish": "Bullish",

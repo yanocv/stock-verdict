@@ -66,6 +66,8 @@ async function processTicker(
     currencyMismatch: dcfAnalysis.currencyMismatch != null,
     requiredMosBonus,
     nonOperatingEarnings: fairValue.unavailableReason === 'non-operating-earnings',
+    bearFairValuePerShare: fairValue.bear,
+    uncertainValue: fairValue.method === 'dcf-earnings' || fairValue.adjustment === 'capped',
   });
 
   const upside =

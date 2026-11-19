@@ -30,6 +30,14 @@ export interface FairValueEstimate {
   multiplesValue: number | null;
   /** 'capped' when modelValue was above `dcf.sanityCap` × multiplesValue */
   adjustment: 'capped' | null;
+  /**
+   * Bear and bull values (§5.7 of docs/CALCULATIONS.md): DCF with the
+   * discount rate 1 pt higher and growth 2 pt lower (bear), or the reverse
+   * (bull); P/B–ROE with the cost of equity ±1 pt. Same sanity cap as `value`,
+   * and bear ≤ value ≤ bull. A range, never a probability.
+   */
+  bear: number | null;
+  bull: number | null;
   /** Why no value is given on purpose (null when there is one, or the method just had no data) */
   unavailableReason: 'currency-mismatch' | 'non-operating-earnings' | null;
 }
@@ -55,8 +63,8 @@ export function isFinancialCompany(overview: Pick<StockOverview, 'sector'>): boo
 
 /**
  * Justified price-to-book: P/B = (ROE − g) ÷ (cost of equity − g), times book
- * value per share. ROE is the latest from financials, else the average of
- * recent years (net income ÷ equity). Null when equity is missing or ROE
+ * value per share. ROE is the lower of the latest (financials) and the
+ * average of recent years (net income ÷ equity), whichever exist. Null when equity is missing or ROE
  * doesn't beat long-run growth.
  */
 export function pbRoeFairValue(input: {
@@ -64,31 +72,34 @@ export function pbRoeFairValue(input: {
   history: Pick<FinancialHistory, 'incomeAnnual' | 'balanceAnnual'> | null | undefined;
   sharesOutstanding: number;
   riskFreeRate: number;
+  /** Added to the cost of equity (bear +0.01, bull −0.01) */
+  costOfEquityShift?: number;
 }): number | null {
-  const { financials, history, sharesOutstanding, riskFreeRate } = input;
+  const { financials, history, sharesOutstanding, riskFreeRate, costOfEquityShift = 0 } = input;
   const equities = (history?.balanceAnnual ?? [])
     .map((p) => p.shareholderEquity)
     .filter((v): v is number => typeof v === 'number' && v > 0);
   const equity = equities[equities.length - 1];
   if (equity === undefined || sharesOutstanding <= 0) {return null;}
 
-  let roe = financials.roe !== null ? financials.roe / 100 : null;
-  if (roe === null) {
-    const years = DCF_PARAMS.cashFlowYears;
-    const incomes = (history?.incomeAnnual ?? [])
-      .map((p) => p.netIncome)
-      .filter((v): v is number => typeof v === 'number')
-      .slice(-years);
-    const recentEquity = equities.slice(-years);
-    if (incomes.length > 0) {
-      const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
-      roe = avg(incomes) / avg(recentEquity);
-    }
-  }
+  // ROE: the lower of the latest (Yahoo, last 12 months) and the average of
+  // recent annual statements, so a one-off gain can't inflate the value
+  // (ORIX, Nov 2026: latest 19.7% vs 8.9% over 4 years)
+  const latestRoe = financials.roe !== null ? financials.roe / 100 : null;
+  const years = DCF_PARAMS.cashFlowYears;
+  const incomes = (history?.incomeAnnual ?? [])
+    .map((p) => p.netIncome)
+    .filter((v): v is number => typeof v === 'number')
+    .slice(-years);
+  const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const averageRoe = incomes.length > 0 ? avg(incomes) / avg(equities.slice(-years)) : null;
+  const roe =
+    latestRoe !== null && averageRoe !== null ? Math.min(latestRoe, averageRoe) : latestRoe ?? averageRoe;
   if (roe === null) {return null;}
 
   const growth = Math.min(DEFAULT_TERMINAL_GROWTH_RATE, riskFreeRate);
-  const costOfEquity = calculateWACC(riskFreeRate, clampBeta(financials.beta ?? 1), DEFAULT_EQUITY_RISK_PREMIUM);
+  const costOfEquity =
+    calculateWACC(riskFreeRate, clampBeta(financials.beta ?? 1), DEFAULT_EQUITY_RISK_PREMIUM) + costOfEquityShift;
   if (roe <= growth || costOfEquity <= growth) {return null;}
 
   return (equity / sharesOutstanding) * ((roe - growth) / (costOfEquity - growth));
@@ -107,12 +118,13 @@ export function estimateFairValue(input: {
     'roe' | 'beta' | 'eps' | 'forwardEps' | 'forwardEpsAnalysts' | 'operatingMargin' | 'netProfitMargin'
   >;
   history: Pick<FinancialHistory, 'incomeAnnual' | 'balanceAnnual'> | null | undefined;
-  dcf: Pick<DCFAnalysis, 'baseCase' | 'cashFlowBasis' | 'riskFreeRate' | 'currencyMismatch'>;
+  dcf: Pick<DCFAnalysis, 'baseCase' | 'cashFlowBasis' | 'riskFreeRate' | 'currencyMismatch' | 'sensitivityTable'>;
   benchmarks: Pick<IndustryBenchmarks, 'pe'>;
 }): FairValueEstimate {
   const { overview, financials, history, dcf, benchmarks } = input;
   const none: FairValueEstimate = {
-    value: null, method: null, modelValue: null, multiplesValue: null, adjustment: null, unavailableReason: null,
+    value: null, method: null, modelValue: null, multiplesValue: null, adjustment: null,
+    bear: null, bull: null, unavailableReason: null,
   };
   if (dcf.currencyMismatch) {return { ...none, unavailableReason: 'currency-mismatch' };}
 
@@ -124,17 +136,26 @@ export function estimateFairValue(input: {
 
   let method: FairValueMethod | null;
   let modelValue: number | null;
+  let bearModel: number | null;
+  let bullModel: number | null;
   if (financial) {
     method = 'pb-roe';
-    modelValue = pbRoeFairValue({
-      financials,
-      history,
-      sharesOutstanding: overview.sharesOutstanding,
-      riskFreeRate: dcf.riskFreeRate ?? DEFAULT_RISK_FREE_RATE,
-    });
+    const pbRoe = (costOfEquityShift: number) =>
+      pbRoeFairValue({
+        financials,
+        history,
+        sharesOutstanding: overview.sharesOutstanding,
+        riskFreeRate: dcf.riskFreeRate ?? DEFAULT_RISK_FREE_RATE,
+        costOfEquityShift,
+      });
+    modelValue = pbRoe(0);
+    bearModel = pbRoe(SCENARIO_COE_SHIFT);
+    bullModel = pbRoe(-SCENARIO_COE_SHIFT);
   } else {
     method = dcf.cashFlowBasis === 'earnings' ? 'dcf-earnings' : dcf.cashFlowBasis === 'fcf' ? 'dcf-fcf' : null;
     modelValue = dcf.baseCase;
+    bearModel = gridValue(dcf.sensitivityTable, BEAR_CELL);
+    bullModel = gridValue(dcf.sensitivityTable, BULL_CELL);
   }
 
   const eps = currentEps(financials);
@@ -142,7 +163,31 @@ export function estimateFairValue(input: {
   if (modelValue === null) {return { ...none, method, multiplesValue };}
 
   const cap = multiplesValue !== null ? multiplesValue * DCF_PARAMS.sanityCap : Infinity;
-  return modelValue > cap
-    ? { value: cap, method, modelValue, multiplesValue, adjustment: 'capped', unavailableReason: null }
-    : { value: modelValue, method, modelValue, multiplesValue, adjustment: null, unavailableReason: null };
+  const value = Math.min(modelValue, cap);
+  return {
+    value,
+    method,
+    modelValue,
+    multiplesValue,
+    adjustment: modelValue > cap ? 'capped' : null,
+    bear: bearModel !== null ? Math.min(bearModel, cap, value) : null,
+    bull: bullModel !== null ? Math.max(Math.min(bullModel, cap), value) : null,
+    unavailableReason: null,
+  };
+}
+
+/** Cost-of-equity shift for the P/B–ROE bear (+) and bull (−) values. */
+const SCENARIO_COE_SHIFT = 0.01;
+
+/**
+ * Cells of the DCF sensitivity grid used as bear and bull: rows are the
+ * discount rate −2…+2 pt, columns starting growth −2…+2 pt (buildSensitivityTable).
+ */
+const BEAR_CELL = { row: 3, col: 0 }; // discount rate +1 pt, growth −2 pt
+const BULL_CELL = { row: 1, col: 4 }; // discount rate −1 pt, growth +2 pt
+
+/** Fair value in a grid cell; null when missing or not positive (invalid inputs). */
+function gridValue(table: DCFAnalysis['sensitivityTable'], cell: { row: number; col: number }): number | null {
+  const v = table[cell.row]?.[cell.col]?.fairValue;
+  return typeof v === 'number' && v > 0 ? v : null;
 }

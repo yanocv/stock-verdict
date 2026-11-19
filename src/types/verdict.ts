@@ -25,6 +25,8 @@ export interface Verdict {
   lynchCategory: LynchCategory;
   /** Core inputs that were unavailable (lowers confidence; not scored as zero). */
   missingData: string[];
+  /** Upside to fair value ÷ downside to the bear value (or stop-loss), one decimal; null without a fair value */
+  rewardToRisk?: number | null;
 }
 
 export interface InvestorVerdict {

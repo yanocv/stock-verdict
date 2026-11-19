@@ -596,3 +596,61 @@ describe('nonOperatingEarnings (P15)', () => {
     expect(r.reasons.bearish.some((x) => x.includes('outside its operations'))).toBe(true);
   });
 });
+
+describe('reward-to-risk gate (P13)', () => {
+  // strongMetrics at price 150 scores BUY on its own
+  const base = { financials: strongMetrics, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS };
+
+  it('keeps BUY when upside is at least twice the downside to the bear value', () => {
+    // Reward 200 − 150 = 50; risk 150 − 125 = 25 → 2.0 : 1
+    const r = generateVerdict({ ...base, dcfFairValuePerShare: 200, bearFairValuePerShare: 125 });
+    expect(r.rewardToRisk).toBe(2);
+    expect(r.recommendation).toBe('BUY');
+    expect(r.reasons.bullish).toContain('Upside vs downside is 2.0 : 1');
+  });
+
+  it('turns BUY into WAIT below 2 : 1', () => {
+    // Reward 50; risk 150 − 100 = 50 → 1.0 : 1
+    const r = generateVerdict({ ...base, dcfFairValuePerShare: 200, bearFairValuePerShare: 100 });
+    expect(r.rewardToRisk).toBe(1);
+    expect(r.recommendation).toBe('WAIT');
+    expect(r.reasons.bearish.some((x) => x.includes('below 2 : 1'))).toBe(true);
+  });
+
+  it('uses the 15% stop-loss as the downside when the bear value is above or just under the price', () => {
+    // Reward 200 − 150 = 50; risk 15% × 150 = 22.5 → 2.2 : 1
+    const r = generateVerdict({ ...base, dcfFairValuePerShare: 200, bearFairValuePerShare: 160 });
+    expect(r.rewardToRisk).toBe(2.2);
+    // Bear ¥146 is only ¥4 under the price: risk is still the ¥22.5 stop, not ¥4
+    expect(generateVerdict({ ...base, dcfFairValuePerShare: 200, bearFairValuePerShare: 146 }).rewardToRisk).toBe(2.2);
+  });
+
+  it('is skipped without a fair value (missing data stays neutral)', () => {
+    const r = generateVerdict({ ...base, dcfFairValuePerShare: null });
+    expect(r.rewardToRisk).toBeNull();
+  });
+});
+
+describe('uncertainty-scaled margin of safety (P14)', () => {
+  const base = { financials: strongMetrics, balanceSheet, price: 72, industryBenchmarks: DEFAULT_BENCHMARKS, dcfFairValuePerShare: 100 };
+
+  it('asks for an extra 5% discount when the fair value is uncertain', () => {
+    const sure = generateVerdict(base);
+    const unsure = generateVerdict({ ...base, uncertainValue: true });
+    // 28% discount clears the 25% step, but not 25% + 5%
+    expect(unsure.scores.valuation).toBeLessThan(sure.scores.valuation);
+    expect(unsure.suggestedBuyPrice).toBeCloseTo(70, 6); // 100 × (0.75 − 0.05)
+    expect(unsure.reasons.bearish.some((r) => r.includes('estimated from earnings or capped'))).toBe(true);
+  });
+
+  it('also applies when 2+ core inputs are missing', () => {
+    const r = generateVerdict({ ...base, financials: { ...strongMetrics, roe: null, currentRatio: null } });
+    expect(r.suggestedBuyPrice).toBeCloseTo(70, 6);
+    expect(r.reasons.bearish.some((x) => x.includes('key data missing'))).toBe(true);
+  });
+
+  it('adds to the market regime bonus', () => {
+    const r = generateVerdict({ ...base, uncertainValue: true, requiredMosBonus: 0.05 });
+    expect(r.suggestedBuyPrice).toBeCloseTo(65, 6); // 100 × (0.75 − 0.05 − 0.05)
+  });
+});

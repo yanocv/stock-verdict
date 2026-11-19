@@ -109,6 +109,8 @@ export async function GET(
       currencyMismatch: dcfAnalysis.currencyMismatch != null,
       requiredMosBonus: macroRegime.marginOfSafetyBonus / 100,
       nonOperatingEarnings: fairValueEstimate.unavailableReason === 'non-operating-earnings',
+      bearFairValuePerShare: fairValueEstimate.bear,
+      uncertainValue: fairValueEstimate.method === 'dcf-earnings' || fairValueEstimate.adjustment === 'capped',
     });
 
     // 8. Run individual investor lenses

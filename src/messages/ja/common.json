@@ -25,6 +25,7 @@
   "confidence": "信頼度",
   "missingData": "データ不足（信頼度を下げています）: {fields}",
   "fairValue": "適正価格",
+  "fairValueRange": "レンジ（弱気〜強気）",
   "buyBelow": "買い推奨価格",
   "analysis": "分析",
   "bullish": "強気材料",

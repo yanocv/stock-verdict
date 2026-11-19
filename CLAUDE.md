@@ -6,6 +6,7 @@ Next.js app that turns one ticker (US like `AAPL`, Tokyo like `7203` / `7203.T`)
 
 - `docs/PROJECT_SUMMARY_FOR_AI_AGENTS.md` — product, philosophy, progress
 - `docs/CALCULATIONS.md` — how the system calculates everything today (as built), step by step
+- `docs/DATABASE.md` — ER diagram (Mermaid) for the SQLite database: verdict log first, then watchlist, positions, rules, alerts
 - `docs/ENGINE_SPEC.md` — source of truth for the verdict engine plans: current gaps, planned layers and gate order, owner decisions (§8, §9.6, §10.4), investing principles (§10), **the plan (§10.3)**
 - `docs/docs_INVESTMENT_PHILOSOPHY.md`, `docs/docs_MASTER_PARAMETERS.md` — background only; where they disagree with ENGINE_SPEC or the code, ENGINE_SPEC and the code win
 
@@ -27,7 +28,7 @@ npm ci
 npm run dev
 npm run lint        # eslint . (flat config; 0 errors, 2 known set-state-in-effect warnings)
 npm run typecheck
-npm run test:run    # vitest; 357 tests as of 2026-11-15
+npm run test:run    # vitest; 370 tests as of 2026-11-19
 ```
 
 Env: copy `.env.example` → `.env.local`. `ANTHROPIC_API_KEY` is optional (AI summary is skipped without it); `ANTHROPIC_MODEL` defaults to `claude-haiku-5-5`.
@@ -54,13 +55,13 @@ Env: copy `.env.example` → `.env.local`. `ANTHROPIC_API_KEY` is optional (AI s
 
 ## State (2026-10-25)
 
-Done: lint fixed for Next 16; debug routes gated; model ID in env; technicals + DCF now feed the verdict; screener per-share fair value fixed; DCF growth = median of FCF CAGR / revenue CAGR / EPS growth, faded to terminal, capped 15%; missing data neutral + confidence penalty; ADR currency mismatch suppresses fair values; `params.ts`; ENGINE_SPEC v0.3 (§9 model proposal, owner decisions in §9.6: Japan first, NISA, JPY); §9 P1–P3, P8, P9 fixed (trend-based market regime; regime margin-of-safety bonus applied; live US 10Y and MoF JGB 10Y in the DCF; fair value by company type from current earnings (trailing EPS blended with analyst estimate) × cash conversion, earnings basis, P/B–ROE for financials, beta floor, sanity cap; conservative growth (inputs clipped, shrunk halfway to long-run); Yahoo sector/industry names mapped to benchmark sets incl. Industrials and Basic Materials; verdict decided on the displayed score); `docs/CALCULATIONS.md` written; investing principles (Graham + Housel) mapped in ENGINE_SPEC §10. Plan: ENGINE_SPEC §10.3. Owner approved §10 (P11–P14, exit plan with trailing stop on the last part, 2 : 1 reward-to-risk, SQLite for the verdict log); docs updated, source code not yet except P15 (no fair value when profit isn't from operations, e.g. SoftBank). P10 done 2026-11-15 (balance sheet completed from statement history; Graham book value per share and Buffett lens fair value fixed). Next in code: P11 (Japan cost of equity from TOPIX), then P12–P14.
+Done: lint fixed for Next 16; debug routes gated; model ID in env; technicals + DCF now feed the verdict; screener per-share fair value fixed; DCF growth = median of FCF CAGR / revenue CAGR / EPS growth, faded to terminal, capped 15%; missing data neutral + confidence penalty; ADR currency mismatch suppresses fair values; `params.ts`; ENGINE_SPEC v0.3 (§9 model proposal, owner decisions in §9.6: Japan first, NISA, JPY); §9 P1–P3, P8, P9 fixed (trend-based market regime; regime margin-of-safety bonus applied; live US 10Y and MoF JGB 10Y in the DCF; fair value by company type from current earnings (trailing EPS blended with analyst estimate) × cash conversion, earnings basis, P/B–ROE for financials, beta floor, sanity cap; conservative growth (inputs clipped, shrunk halfway to long-run); Yahoo sector/industry names mapped to benchmark sets incl. Industrials and Basic Materials; verdict decided on the displayed score); `docs/CALCULATIONS.md` written; investing principles (Graham + Housel) mapped in ENGINE_SPEC §10. Plan: ENGINE_SPEC §10.3. Owner approved §10 (P11–P14, exit plan with trailing stop on the last part, 2 : 1 reward-to-risk, SQLite for the verdict log); docs updated, source code not yet except P15 (no fair value when profit isn't from operations, e.g. SoftBank). P10 done 2026-11-15 (balance sheet completed from statement history; Graham book value per share and Buffett lens fair value fixed). P11 closed with no change 2026-11-19 (TOPIX implies ~7.5% cost of equity; model already at or above it). P12 done 2026-11-19 (bear/base/bull fair values shown as a range). P13 done 2026-11-19 (BUY needs reward ÷ risk ≥ 2 against the bear value or the 15% stop). ORIX fixed (P/B–ROE uses lower of latest and 4-year average ROE). P14 done 2026-11-19 (extra 5 pt discount when the fair value is uncertain). Next per ENGINE_SPEC §10.3: step 5, verdict log in SQLite (decision journal). ER diagram drafted in docs/DATABASE.md, awaiting owner approval (§3 there).
 
 Not verified against live data: Yahoo's `financialData.financialCurrency` for ADRs (e.g. TSM should be TWD).
 
 ## Next
 
-The plan and its status live in `docs/ENGINE_SPEC.md` §10.3 (approved by the owner). In short: P11 Japan cost of equity → P12–P14 bear/base/bull values, 2 : 1 reward-to-risk gate, uncertainty-scaled margin of safety → verdict log in SQLite (decision journal) → backtest harness (price-only signals first) → Quality / Value / Expectations split with gates → position and portfolio layers.
+The plan and its status live in `docs/ENGINE_SPEC.md` §10.3 (approved by the owner). In short: verdict log in SQLite (decision journal) → backtest harness (price-only signals first) → Quality / Value / Expectations split with gates → position and portfolio layers.
 
 Diagrams (owner request, 2026-10-25):
 - ER diagram: draw it when the database and backend work starts (verdict log, watchlist, positions, alerts, rules). Desktop UI designs are in `docs/design/`.

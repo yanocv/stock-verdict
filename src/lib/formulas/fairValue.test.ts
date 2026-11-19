@@ -4,19 +4,27 @@ import { DEFAULT_ENGINE_PARAMS } from '@/lib/scoring/params';
 
 const { betaFloor, equityRiskPremium, sanityCap } = DEFAULT_ENGINE_PARAMS.dcf;
 const benchmarks = { pe: { cheap: 10, fair: 15, expensive: 25 } };
-const dcf = (baseCase: number | null, cashFlowBasis: 'fcf' | 'earnings' | null = 'fcf') => ({
+const dcf = (
+  baseCase: number | null,
+  cashFlowBasis: 'fcf' | 'earnings' | null = 'fcf',
+  sensitivityTable: Array<Array<{ wacc: number; growthRate: number; fairValue: number }>> = []
+) => ({
   baseCase,
   cashFlowBasis,
   riskFreeRate: 0.03,
   currencyMismatch: null,
+  sensitivityTable,
 });
+// 5×5 grid whose cell (row, col) is worth `fn(row, col)`: rows = discount rate −2…+2 pt, cols = growth −2…+2 pt
+const grid = (fn: (row: number, col: number) => number) =>
+  [0, 1, 2, 3, 4].map((r) => [0, 1, 2, 3, 4].map((c) => ({ wacc: 0, growthRate: 0, fairValue: fn(r, c) })));
 const industrial = { sector: 'Industrials', sharesOutstanding: 100 };
 
 describe('estimateFairValue', () => {
   it('passes the DCF value through when it agrees with earnings', () => {
     // EPS 10 × fair P/E 15 = 150; DCF 200 is under the 1.5× cap (225)
     const fv = estimateFairValue({ overview: industrial, financials: { operatingMargin: 10, netProfitMargin: 8, roe: 12, beta: 1, eps: 10 }, history: null, dcf: dcf(200), benchmarks });
-    expect(fv).toEqual({ value: 200, method: 'dcf-fcf', modelValue: 200, multiplesValue: 150, adjustment: null, unavailableReason: null });
+    expect(fv).toEqual({ value: 200, method: 'dcf-fcf', modelValue: 200, multiplesValue: 150, adjustment: null, bear: null, bull: null, unavailableReason: null });
   });
 
   it('caps a DCF value far above what earnings support', () => {
@@ -132,5 +140,64 @@ describe('profit that does not come from operations (P15)', () => {
     });
     expect(fv.method).toBe('pb-roe');
     expect(fv.unavailableReason).toBeNull();
+  });
+});
+
+describe('bear and bull values (P12)', () => {
+  const fin = { operatingMargin: 10, netProfitMargin: 8, roe: 12, beta: 1, eps: 10 };
+  // Value falls as the discount rate rises (row) and rises with growth (col)
+  const table = grid((r, c) => 200 - 20 * (r - 2) + 10 * (c - 2));
+
+  it('takes bear (rate +1, growth −2) and bull (rate −1, growth +2) from the DCF grid', () => {
+    const fv = estimateFairValue({ overview: industrial, financials: { ...fin, eps: 100 }, history: null, dcf: dcf(200, 'fcf', table), benchmarks });
+    expect(fv.bear).toBe(200 - 20 - 20); // 160
+    expect(fv.bull).toBe(200 + 20 + 20); // 240
+  });
+
+  it('caps bear and bull like the base value, keeping bear ≤ value ≤ bull', () => {
+    // Cap = 1.5 × EPS 10 × P/E 15 = 225
+    const fv = estimateFairValue({ overview: industrial, financials: fin, history: null, dcf: dcf(200, 'fcf', table), benchmarks });
+    expect(fv.value).toBe(200);
+    expect(fv.bull).toBe(225);
+    expect(fv.bear).toBe(160);
+  });
+
+  it('is null when the grid cell is invalid', () => {
+    const fv = estimateFairValue({ overview: industrial, financials: fin, history: null, dcf: dcf(200, 'fcf', grid(() => 0)), benchmarks });
+    expect(fv.bear).toBeNull();
+    expect(fv.bull).toBeNull();
+  });
+
+  it('shifts the cost of equity ±1 pt for banks', () => {
+    const history = { incomeAnnual: [], balanceAnnual: [{ period: '2026', endDate: '', shareholderEquity: 20_000 }] };
+    const fv = estimateFairValue({
+      overview: { sector: 'Financial Services', sharesOutstanding: 100 },
+      financials: { ...fin, roe: 10, eps: 1_000 },
+      history,
+      dcf: dcf(null, null),
+      benchmarks,
+    });
+    const coe = 0.03 + equityRiskPremium; // beta 1 (above the floor) × premium
+    const bvps = 200;
+    expect(fv.bear).toBeCloseTo(bvps * (0.10 - 0.03) / (coe + 0.01 - 0.03), 6);
+    expect(fv.bull).toBeCloseTo(bvps * (0.10 - 0.03) / (coe - 0.01 - 0.03), 6);
+  });
+});
+
+describe('P/B–ROE uses the lower of latest and average ROE', () => {
+  // Equity 1,000 each year; net income 100 → 10% average ROE
+  const history = {
+    incomeAnnual: [{ period: '2025', endDate: '', netIncome: 100 }, { period: '2026', endDate: '', netIncome: 100 }],
+    balanceAnnual: [{ period: '2025', endDate: '', shareholderEquity: 1_000 }, { period: '2026', endDate: '', shareholderEquity: 1_000 }],
+  };
+  const value = (roe: number | null) =>
+    pbRoeFairValue({ financials: { roe, beta: 1 }, history, sharesOutstanding: 10, riskFreeRate: 0.03 });
+
+  it('ignores a one-off jump in the latest ROE', () => {
+    expect(value(20)).toBeCloseTo(value(10)!, 6); // latest 20% → average 10% used
+  });
+
+  it('uses the latest ROE when it is lower', () => {
+    expect(value(8)!).toBeLessThan(value(10)!);
   });
 });

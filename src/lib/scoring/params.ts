@@ -25,6 +25,14 @@ export interface EngineParams {
     buyMin: number;
     /** overall < avoidMax → AVOID; between → WAIT */
     avoidMax: number;
+    /**
+     * BUY needs reward ÷ risk ≥ this (ENGINE_SPEC §10.2 P13). Reward = fair
+     * value − price; risk = price − bear value, or the stop-loss when the
+     * bear value is above the price.
+     */
+    minRewardToRisk: number;
+    /** Stop-loss below the entry price used as the downside in that case (decimal) */
+    stopLossPct: number;
   };
   confidence: {
     /** Confidence at a threshold, before distance is added */
@@ -44,6 +52,13 @@ export interface EngineParams {
   marginOfSafety: {
     above: ReadonlyArray<{ mos: number; points: number }>;
     below: ReadonlyArray<{ mos: number; points: number }>;
+    /**
+     * Extra discount (decimal) a BUY needs when the fair value is less
+     * certain: estimated from earnings, capped, or with this many core
+     * inputs missing (ENGINE_SPEC §10.2 P14)
+     */
+    uncertaintyBonus: number;
+    uncertainMissingInputs: number;
   };
   /** Suggested entry = fair value × factor (or price × fallback when no fair value). */
   suggestedBuy: {
@@ -127,6 +142,8 @@ export const DEFAULT_ENGINE_PARAMS: EngineParams = {
   verdict: {
     buyMin: 7,
     avoidMax: 4,
+    minRewardToRisk: 2,
+    stopLossPct: 0.15,
   },
   confidence: {
     base: 50,
@@ -145,6 +162,8 @@ export const DEFAULT_ENGINE_PARAMS: EngineParams = {
       { mos: -0.30, points: -3 }, // >30% above fair value — materially overvalued
       { mos: -0.10, points: -1 }, // >10% above fair value — moderately overvalued
     ],
+    uncertaintyBonus: 0.05,
+    uncertainMissingInputs: 2,
   },
   suggestedBuy: {
     fairValueFactor: 0.75,

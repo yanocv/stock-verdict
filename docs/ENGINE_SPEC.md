@@ -304,8 +304,8 @@ Status: all approved 2026-10-25 (§10.4). Not built yet.
 | 1 | §9 P1–P3, P8, P9; MHI fair-value revision; conservative growth (clip + shrink) and conversion cap | 1, 4 | **Done** 2026-10-25 |
 | 2 | P10: shareholder equity from statement history | — | **Done** 2026-11-15 |
 | 2b | P15: no fair value when earnings don't come from operations (operating margin ≤ 0 while profitable); P/E, PEG, ROE and net margin not scored; reason shown. Holding companies would need net asset value (holdings − net debt), which our data lacks | 1 | **Done** 2026-10-25 (owner approved). SoftBank: no fair value, WAIT 6.3 → 4.6 |
-| 3 | P11: Japan cost of equity from TOPIX | 1 | Approved |
-| 4 | P12 + P13 + P14: bear/base/bull values, reward-to-risk gate, uncertainty-scaled margin of safety | 1, 2, 5 | Approved |
+| 3 | P11: Japan cost of equity from TOPIX | 1 | **Closed, no change** 2026-11-19: TOPIX P/E 14.7 (div. yield 1.9%) implies a cost of equity of ~7.5% (premium ~4.6%). The model already uses 7.3% for low-beta large caps (beta floor 0.8) and 8.4% at beta 1, so it is at or above the market's rate. Owner kept the 5.5% premium as the conservative choice. Toyota's low P/E is company-specific; P12 and the Expectations score handle that |
+| 4 | P12 + P13 + P14: bear/base/bull values, reward-to-risk gate, uncertainty-scaled margin of safety | 1, 2, 5 | P12 **done** 2026-11-19 (range shown on S-02; CALCULATIONS §5.7). P13 **done** 2026-11-19 (gate in CALCULATIONS §6.4; no fair value → gate skipped; risk = larger of bear gap and 15% stop). P14 **done** 2026-11-19 (+5 pt for earnings-basis or capped value, or 2+ core inputs missing; confidence < 50% was not used as a trigger because confidence depends on the score, which depends on the discount). Also 2026-11-19: P/B–ROE uses the lower of latest and 4-year average ROE (ORIX ¥14,232 → ¥5,717) |
 | 5 | Verdict log as decision journal (SQLite, details when started) | 7 | Approved |
 | 6 | Backtest harness, price-only signals first; judge by basket vs TOPIX and drawdown, hit rate as context only | 8 | Planned |
 | 7 | Quality / Value / Expectations split + gates 0–3 behind a flag | 3, 4 | Planned |

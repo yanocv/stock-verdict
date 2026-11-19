@@ -131,14 +131,21 @@ Starts from **today's earning power**, not an average of past years (averaging u
 
 ### 5.5 Banks and insurers: P/B–ROE (`pbRoeFairValue`)
 - Book value per share = latest shareholder equity (from annual statements) ÷ shares.
-- ROE = latest ROE; if missing, average net income ÷ average equity over the last 4 years.
+- ROE = the **lower** of the latest ROE (Yahoo, last 12 months) and average net income ÷ average equity over the last 4 annual statements (whichever exist). A one-off gain can't inflate the value (ORIX, Nov 2026: latest 19.7% vs 8.9% average); banks with genuinely rising ROE are valued slightly low.
 - Fair P/B = (ROE − g) ÷ (cost of equity − g), with g = long-run growth (§5.4) and the cost of equity from §5.3.
 - Fair value = book value per share × fair P/B. None if ROE ≤ g.
 
 ### 5.6 Sanity cap
 Reference = current EPS (§5.2, trailing blended with the analyst estimate) × the sector's "fair" P/E (§6.1 benchmarks). If the method's value is above **1.5×** that *(param `dcf.sanityCap`)*, it is cut to 1.5× (`adjustment: 'capped'`). Values below the reference are kept: one-off gains can inflate EPS (SoftBank), and raising them would invent bargains. No cap when EPS ≤ 0.
 
-The response returns `fairValueEstimate` with `method`, `modelValue` (before the cap), `multiplesValue` and `adjustment`.
+The response returns `fairValueEstimate` with `method`, `modelValue` (before the cap), `multiplesValue`, `adjustment`, `bear`, `bull` and `unavailableReason`.
+
+### 5.7 Bear and bull values
+A range around the base value, so a single number isn't presented as certain. It is never turned into probabilities.
+- **DCF methods:** from the sensitivity grid (§5.4). **Bear** = discount rate +1 pt and starting growth −2 pt; **bull** = discount rate −1 pt and growth +2 pt.
+- **P/B–ROE (financials):** cost of equity +1 pt (bear) or −1 pt (bull).
+- Both get the same sanity cap as the base value (§5.6), and bear ≤ base ≤ bull. A grid cell that isn't valid (e.g. discount rate ≤ long-run growth) gives no value.
+- Shown under the fair value as "Range (bear – bull)". The bear value is the downside in the reward-to-risk gate (§6.4).
 
 ---
 
@@ -166,7 +173,7 @@ Each sector has bands for P/E, P/S, operating margin, ROE and debt/equity. Looku
 
 When the profit doesn't come from operations (§5.1), P/E and PEG are skipped (and ROE and net margin in Financials): they are built on those one-off earnings.
 
-Margin of safety (MoS) = (fair value − price) ÷ fair value, **minus the regime bonus** (§3.3). First matching step *(param `marginOfSafety`)*: > 40% +4 · > 25% +2.5 · > 10% +1 · < −30% −3 · < −10% −1.
+Margin of safety (MoS) = (fair value − price) ÷ fair value, **minus the regime bonus** (§3.3) **and minus the uncertainty bonus**: +5 pt *(param `marginOfSafety.uncertaintyBonus`)* when the fair value is on the earnings basis or was capped (§5), or 2+ core inputs are missing *(param `marginOfSafety.uncertainMissingInputs`)*. First matching step *(param `marginOfSafety`)*: > 40% +4 · > 25% +2.5 · > 10% +1 · < −30% −3 · < −10% −1.
 
 **Health**
 | Input | Points |
@@ -200,8 +207,13 @@ Overall = weighted average *(param `weights`)*: valuation **35%**, financials **
 
 The verdict is decided on the overall score **as displayed** (rounded to one decimal), so a score shown as 4.0 is always WAIT.
 
+**Reward-to-risk gate** *(param `verdict.minRewardToRisk` 2, `verdict.stopLossPct` 0.15)*: a BUY by score stays BUY only if reward ÷ risk ≥ **2**, otherwise it becomes **WAIT**.
+- Reward = fair value − price. Risk = the **larger** of (price − bear value, §5.7) and the 15% stop-loss (price × 0.15): you risk at least your stop, even when the bear value is just under or above the price.
+- The ratio is rounded to one decimal and returned as `verdict.rewardToRisk`; it appears in the reasons ("Upside vs downside is 2.4 : 1", or "… below 2 : 1 — WAIT instead of BUY").
+- No fair value → no ratio, and the gate is skipped (missing data stays neutral).
+
 ### 6.5 Suggested entry price
-- With a fair value: fair value × (0.75 − regime bonus). Neutral regime → 70% of fair value.
+- With a fair value: fair value × (0.75 − regime bonus − uncertainty bonus). Neutral regime, certain value → 70%; neutral regime, uncertain value → 65%.
 - Without: current price × 0.85.
 
 The engine only runs its own simple FCF DCF when the caller gives no fair value at all. The app always gives one (possibly "none"), so that fallback is for tests and backtests.
@@ -212,7 +224,7 @@ The engine only runs its own simple FCF DCF when the caller gives no fair value 
 - Missing inputs are listed in `verdict.missingData`; an ADR adds "fair value (financials in a different currency)", and profit from outside operations adds "fair value (profit not from operations)".
 
 ### 6.7 Reasons
-Plain-language bullets for and against, from the same inputs: strong ROE, positive FCF, PEG < 1, liquidity, EPS growth, MoS > 20% / > 40% or price > 20% above fair value, price below the suggested entry, high debt, low current ratio, high P/E, falling EPS, "Market caution: a BUY needs an extra N% discount" when the regime bonus applies, and "Profit comes from outside its operations…" for §5.1's no-value case (the "Strong ROE" reason is then skipped).
+Plain-language bullets for and against, from the same inputs: strong ROE, positive FCF, PEG < 1, liquidity, EPS growth, MoS > 20% / > 40% or price > 20% above fair value, price below the suggested entry, high debt, low current ratio, high P/E, falling EPS, "Market caution: a BUY needs an extra N% discount" when the regime bonus applies, "Fair value is less certain (…): a BUY needs an extra 5% discount" when the uncertainty bonus applies, and "Profit comes from outside its operations…" for §5.1's no-value case (the "Strong ROE" reason is then skipped).
 
 ---
 

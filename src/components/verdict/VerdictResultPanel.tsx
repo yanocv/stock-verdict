@@ -59,7 +59,7 @@ function formatNum(value: number | null, decimals: number = 2): string {
 
 export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
   const t = useTranslations('common');
-  const { overview, financials, verdict, investorVerdicts, news, macroData, calendarData, financialHistory, priceHistory, analystConsensus, technicalIndicators, dcfAnalysis } = data;
+  const { overview, financials, verdict, investorVerdicts, news, macroData, calendarData, financialHistory, priceHistory, analystConsensus, technicalIndicators, dcfAnalysis, fairValueEstimate } = data;
   const currency = overview.currency;
 
   return (
@@ -136,6 +136,12 @@ export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
                     {formatCurrency(verdict.fairValue, currency)}
                   </span>
                 </div>
+                {fairValueEstimate.bear !== null && fairValueEstimate.bull !== null && (
+                  <div className="text-xs text-muted-foreground">
+                    {t('fairValueRange')}: {formatCurrency(fairValueEstimate.bear, currency)} –{' '}
+                    {formatCurrency(fairValueEstimate.bull, currency)}
+                  </div>
+                )}
                 {verdict.suggestedBuyPrice !== null && (
                   <div className="text-muted-foreground">
                     {t('buyBelow')}:{' '}
