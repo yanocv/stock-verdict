@@ -1,6 +1,6 @@
 # KabuCheck database (ER diagram)
 
-> Status: **draft for owner approval**, 2026-11-19. Nothing here is built yet.
+> Status: **approved by the owner 2026-11-19** (§3). Step-5 tables **built** in `src/lib/db/` (not yet called by the routes). Rules as built: CALCULATIONS.md §8.
 > Engine: SQLite (one file in the project, no server), behind a small TypeScript interface so it can move to a hosted database (e.g. Postgres) when sign-in and multiple devices arrive. ENGINE_SPEC §10.3 step 5.
 
 ## 1. Diagram
@@ -65,7 +65,7 @@ erDiagram
         real suggested_buy
         real reward_to_risk
         text regime "risk-on neutral risk-off"
-        real mos_bonus "regime + uncertainty"
+        real regime_mos_bonus "extra discount the regime asked for"
         text missing_data_json
         text reasons_json "for and against"
     }
@@ -153,9 +153,9 @@ erDiagram
 
 Indexes: `verdicts (ticker, created_at)` for "latest verdict per stock" (needed by hysteresis, ENGINE_SPEC §5) and `verdicts (created_at, recommendation)` for the monthly forward test against TOPIX.
 
-## 3. Owner decisions needed
+## 3. Owner decisions (approved 2026-11-19)
 
-1. **Approve the tables for step 5:** `stocks`, `engine_versions`, `verdicts`, `verdict_inputs`?
-2. **Log screener results too?** Recommendation: **yes**, with `source = screener`. Each scan then records the whole Nikkei list, which is the best data for the forward test (what did the model say about every stock, not only the ones you opened).
-3. **Keep raw inputs forever?** Recommendation: yes for now. At roughly 20–50 KB per verdict, even 100 verdicts a day is under 2 GB a year; revisit if it grows.
-4. **Where the file lives:** `data/kabucheck.db`, excluded from git (personal data and large).
+1. **Approved:** step-5 tables `stocks`, `engine_versions`, `verdicts`, `verdict_inputs`.
+2. **Log screener results too: yes**, with `source = screener`. Each scan then records the whole Nikkei list, which is the best data for the forward test (what did the model say about every stock, not only the ones you opened).
+3. **Keep raw inputs: yes**, for now. At roughly 20–50 KB per verdict, even 100 verdicts a day is under 2 GB a year; revisit if it grows.
+4. **File:** `data/kabucheck.db`, excluded from git (personal data and large).

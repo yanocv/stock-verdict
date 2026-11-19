@@ -250,3 +250,15 @@ Any hard fail → REJECT; any soft fail → INVESTIGATE; else ALL_PASS. Owner de
 All three lens fair values are hidden when the verdict has none on purpose (ADR currency mismatch, or profit not from operations).
 
 **AI summary** ([`services/claudeService.ts`](../src/lib/services/claudeService.ts)): written by Claude from the numbers above, in the user's language. Skipped without `ANTHROPIC_API_KEY`. It never changes a score.
+
+---
+
+## 8. Verdict log (database)
+
+Every verdict is recorded so it can be judged later on what was known at the time (ENGINE_SPEC §10, principle 7). Tables: [DATABASE.md](DATABASE.md). Code: [`src/lib/db/verdictLog.ts`](../src/lib/db/verdictLog.ts), schema in [`src/lib/db/schema.ts`](../src/lib/db/schema.ts).
+
+- **Storage:** SQLite file `data/kabucheck.db` (Node's built-in `node:sqlite`, no extra dependency), excluded from git. Behind the `VerdictLog` interface so it can move to a hosted database.
+- **Append-only:** a verdict is never changed or deleted. Database triggers refuse `UPDATE` and `DELETE` on `verdicts`.
+- **What is recorded per verdict:** stock, time, price and its date, source (`full` analysis or `screener` quick score), verdict, overall and six sub-scores, confidence, fair value with bear/bull, method and note (capped, ADR, non-operating earnings), suggested buy price, reward-to-risk, market regime and its extra discount, missing data, reasons; and in a separate table the raw inputs (financials, balance sheet, DCF, technicals, macro) as JSON.
+- **Engine version:** the full parameter set (`params.ts`) is hashed (SHA-256, first 16 hex characters). Verdicts made with identical parameters share one `engine_versions` row; any parameter change creates a new one, so every verdict says which rules produced it.
+- **Status:** the log is built and tested (2026-11-19) but not yet called by the API routes; that is the next step.
