@@ -486,3 +486,11 @@ describe('cash conversion above earnings', () => {
     expect(selectCashFlowBase({ freeCashFlow: null, eps: 10, roe: 12 }, h, 100, 0.03)).toEqual({ basis: 'fcf', amount: 1000 });
   });
 });
+
+describe('estimateGrowthRate with the next-year estimate', () => {
+  it('adds the growth analysts expect next year (e.g. a patent expiry)', () => {
+    // This year +0.9% (214 → 216), next year −20% (216 → 172.8), clipped to −10%: median ≈ −4.5%
+    const g = estimateGrowthRate({ epsGrowth: null, eps: 214, forwardEps: 216, nextYearEps: 172.8, forwardEpsAnalysts: 15 }, null);
+    expect(g).toBeCloseTo(shrunk((216 / 214 - 1 - 0.10) / 2), 6);
+  });
+});

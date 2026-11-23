@@ -39,7 +39,8 @@ describe('getBenchmarksForSector with Yahoo names', () => {
   it('maps Yahoo industries before the broad sector', () => {
     expect(getBenchmarksForSector('Consumer Cyclical', 'Auto Manufacturers')).toBe(INDUSTRY_BENCHMARKS['Auto Manufacturing']);
     expect(getBenchmarksForSector('Communication Services', 'Telecom Services')).toBe(INDUSTRY_BENCHMARKS.Telecom);
-    expect(getBenchmarksForSector('Healthcare', 'Drug Manufacturers - General')).toBe(INDUSTRY_BENCHMARKS['Pharma/Biotech']);
+    expect(getBenchmarksForSector('Healthcare', 'Drug Manufacturers - General')).toBe(INDUSTRY_BENCHMARKS.Pharma);
+    expect(getBenchmarksForSector('Healthcare', 'Biotechnology')).toBe(INDUSTRY_BENCHMARKS['Pharma/Biotech']);
   });
 
   it('maps Yahoo sectors whose names differ', () => {

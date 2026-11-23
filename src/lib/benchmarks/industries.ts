@@ -56,6 +56,14 @@ const INDUSTRY_BENCHMARKS: Record<string, IndustryBenchmarks> = {
     roe: { poor: 5, average: 12, good: 20 },
     debtToEquity: { low: 0.3, moderate: 1.0, high: 2.0 },
   },
+  // Large drug makers (Takeda, Astellas, Daiichi Sankyo): patent cliffs keep fair multiples moderate
+  Pharma: {
+    pe: { cheap: 10, fair: 16, expensive: 28 },
+    ps: { cheap: 1.5, fair: 3, expensive: 6 },
+    operatingMargin: { poor: 5, average: 15, good: 25 },
+    roe: { poor: 5, average: 10, good: 18 },
+    debtToEquity: { low: 0.3, moderate: 0.8, high: 1.5 },
+  },
   'Pharma/Biotech': {
     pe: { cheap: 15, fair: 25, expensive: 50 },
     ps: { cheap: 3, fair: 7, expensive: 15 },
@@ -121,7 +129,8 @@ const INDUSTRY_ALIASES: ReadonlyArray<[RegExp, string]> = [
   [/Electronic Components|Consumer Electronics|Computer Hardware|Communication Equipment|Scientific & Technical Instruments/i, 'Tech Hardware'],
   [/^Auto (Manufacturers|Parts)/i, 'Auto Manufacturing'],
   [/Retail|Department Stores|Discount Stores|Grocery Stores|Home Improvement/i, 'Retail'],
-  [/Drug Manufacturers|Biotechnology/i, 'Pharma/Biotech'],
+  [/Drug Manufacturers/i, 'Pharma'],
+  [/Biotechnology/i, 'Pharma/Biotech'],
   [/Telecom/i, 'Telecom'],
 ];
 

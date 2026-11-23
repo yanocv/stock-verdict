@@ -34,6 +34,7 @@ export const FinancialMetricsSchema = z.object({
   beta: z.number().nullable(),
   forwardEps: z.number().nullable().optional(),
   forwardEpsAnalysts: z.number().nullable().optional(),
+  nextYearEps: z.number().nullable().optional(),
 });
 
 export const BalanceSheetSchema = z.object({

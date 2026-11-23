@@ -168,6 +168,8 @@ export async function fetchStockData(ticker: string): Promise<YahooStockData> {
   const currentYearTrend = (result.earningsTrend?.trend ?? []).find((t: any) => t?.period === '0y');
   const forwardEps = numOrNull(currentYearTrend?.earningsEstimate?.avg);
   const forwardEpsAnalysts = numOrNull(currentYearTrend?.earningsEstimate?.numberOfAnalysts);
+  const nextYearTrend = (result.earningsTrend?.trend ?? []).find((t: any) => t?.period === '+1y');
+  const nextYearEps = numOrNull(nextYearTrend?.earningsEstimate?.avg);
 
   // Build FinancialMetrics
   const financials: FinancialMetrics = {
@@ -189,6 +191,7 @@ export async function fetchStockData(ticker: string): Promise<YahooStockData> {
     beta,
     forwardEps,
     forwardEpsAnalysts,
+    nextYearEps,
   };
 
   // Build BalanceSheet

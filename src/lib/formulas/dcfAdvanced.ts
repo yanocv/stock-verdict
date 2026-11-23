@@ -95,6 +95,8 @@ function seriesCagr(values: Array<number | null | undefined>): number | null {
  * - FCF CAGR over the annual history
  * - Revenue CAGR over the annual history
  * - Yahoo's earnings growth (latest quarter YoY — noisy on its own)
+ * - Analysts' expected growth next year: next-year estimate ÷ this-year
+ *   estimate − 1 (same analyst-count rule)
  * - Analysts' expected growth this year: estimate ÷ trailing EPS − 1, when at
  *   least `dcf.forecastMinAnalysts` cover the stock and trailing EPS > 0.
  *   The only forward-looking input: without it, a company whose profits are
@@ -109,7 +111,7 @@ function seriesCagr(values: Array<number | null | undefined>): number | null {
  */
 export function estimateGrowthRate(
   financials: Pick<FinancialMetrics, 'epsGrowth'> &
-    Partial<Pick<FinancialMetrics, 'eps' | 'forwardEps' | 'forwardEpsAnalysts'>>,
+    Partial<Pick<FinancialMetrics, 'eps' | 'forwardEps' | 'forwardEpsAnalysts' | 'nextYearEps'>>,
   history?: Pick<FinancialHistory, 'cashFlowAnnual' | 'incomeAnnual'> | null
 ): number {
   const estimates: number[] = [];
@@ -121,6 +123,16 @@ export function estimateGrowthRate(
     (forwardEpsAnalysts ?? 0) >= DCF_PARAMS.forecastMinAnalysts
   ) {
     estimates.push(forwardEps / eps - 1);
+  }
+  // Next year vs this year: catches expected declines a year out (e.g. a
+  // patent expiry the analysts already model)
+  const { nextYearEps } = financials;
+  if (
+    isFiniteNumber(forwardEps) && forwardEps > 0 &&
+    isFiniteNumber(nextYearEps) &&
+    (forwardEpsAnalysts ?? 0) >= DCF_PARAMS.forecastMinAnalysts
+  ) {
+    estimates.push(nextYearEps / forwardEps - 1);
   }
 
   const fcfCagr = seriesCagr(history?.cashFlowAnnual.map((p) => p.freeCashFlow) ?? []);

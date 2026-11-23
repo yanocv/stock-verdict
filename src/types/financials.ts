@@ -19,6 +19,8 @@ export interface FinancialMetrics {
   forwardEps?: number | null;
   /** Number of analysts behind forwardEps */
   forwardEpsAnalysts?: number | null;
+  /** Analysts' average EPS estimate for the next fiscal year (Yahoo earningsTrend "+1y") */
+  nextYearEps?: number | null;
 }
 
 export interface BalanceSheet {
