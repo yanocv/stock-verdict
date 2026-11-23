@@ -152,6 +152,9 @@ A range around the base value, so a single number isn't presented as certain. It
 
 ---
 
+### 5.8 Growth the price implies (reverse DCF)
+`solveImpliedGrowth` in [`formulas/dcfAdvanced.ts`](../src/lib/formulas/dcfAdvanced.ts): the same DCF as §5.4 run backwards — the starting growth rate (searched between −30% and +60% a year by bisection) at which the value per share equals today's price, with the same cash flow, discount rate, 10-year fade and terminal value. Returned as `dcfAnalysis.impliedGrowthRate` (and `impliedGrowthBound` when the price lies outside that range). Not computed for banks (P/B–ROE) or without a cash-flow base. Used by the expectations check (§6.4) and given to the AI research as context (§9).
+
 ## 6. Verdict ([`scoring/verdictEngine.ts`](../src/lib/scoring/verdictEngine.ts) `generateVerdict`)
 
 ### 6.1 Sector benchmarks ([`benchmarks/industries.ts`](../src/lib/benchmarks/industries.ts))
@@ -215,6 +218,9 @@ Overall = weighted average *(param `weights`)*: valuation **35%**, financials **
 | **BUY** | All of: quality **≥ 5.5**; valuation score **≥ 8**; a fair value exists (§5); reward ÷ risk **≥ 2** (below) |
 | **WAIT** | Everything else |
 
+- **Market expectations check** *(param `expectations.gapPts` 0.06)*: gap = model's starting growth (§5.4) − growth the price implies (§5.8).
+  - Gap ≥ **6 pt** (market far more pessimistic): the fair value counts as **uncertain** (extra 5% discount for BUY, §6.2) and the reasons say "The price implies X% growth a year; the model assumes Y%. The market may know something the numbers don't show (patents, guidance, regulation)". The AI research (§9) then looks for what that is.
+  - Gap ≤ **−6 pt** (market far more optimistic): reason "The price already assumes X% growth a year … high expectations are priced in".
 - **Falling-price warning** (`verdict.fallingKnife`): a BUY whose technical score is **≤ 4** (price below its moving averages) stays BUY, and the screen adds: "Good price, but still falling — consider buying in steps or waiting for the trend to turn." The trend informs timing; it no longer blocks the verdict.
 - **Reasons** explain a missed BUY: "Good price, but business quality X is below 5.5 — WAIT instead of BUY", "Upside vs downside is X : 1, below 2 : 1 — WAIT instead of BUY", or "Weak business: quality X of 10 — AVOID".
 - `verdict.buyMin` (7) and `verdict.avoidMax` (4) no longer decide the verdict; they are only the thresholds the confidence distance is measured from (§6.6).
@@ -272,4 +278,40 @@ Every verdict is recorded so it can be judged later on what was known at the tim
 - **Append-only:** a verdict is never changed or deleted. Database triggers refuse `UPDATE` and `DELETE` on `verdicts`.
 - **What is recorded per verdict:** stock, time, price and its date, source (`full` analysis or `screener` quick score), verdict, overall and six sub-scores, confidence, fair value with bear/bull, method and note (capped, ADR, non-operating earnings), suggested buy price, reward-to-risk, market regime and its extra discount, missing data, reasons; and in a separate table the raw inputs (financials, balance sheet, DCF, technicals, macro) as JSON.
 - **Engine version:** the full parameter set (`params.ts`) is hashed (SHA-256, first 16 hex characters). Verdicts made with identical parameters share one `engine_versions` row; any parameter change creates a new one, so every verdict says which rules produced it.
-- **Status:** the log is built and tested (2026-11-19) but not yet called by the API routes; that is the next step.
+- **When:** every full analysis (`source = full`) and every screener row (`source = screener`) since 2026-11-23. Saving never blocks or breaks a response; if the database can't be opened (e.g. a read-only host), the app works without it.
+- The raw inputs also hold the research used (§9) in `research_json`.
+
+---
+
+## 9. AI company research
+
+Since 2026-11-23 (owner decision; ENGINE_SPEC §11). The model's numbers can't see things like a patent expiry, but the market can. The app asks Claude to research known events, with sources, and turns them into numbers by fixed rules. **The AI never decides the verdict.**
+
+### 9.1 When research runs ([`research/getResearch.ts`](../src/lib/research/getResearch.ts))
+- **Stock page only.** The screener never starts research; it uses saved research when there is some (free).
+- **Saved research younger than 7 days is reused** (no cost) *(env `RESEARCH_MAX_AGE_DAYS`)*.
+- **Off without `ANTHROPIC_API_KEY`** (or with `RESEARCH_ENABLED=false`); older saved research is still shown.
+- **Budget guard, checked before every call**, in UTC days/months, counting calls still running at $0.50 each: daily spend < **$1** *(`RESEARCH_DAILY_BUDGET_USD`)*, monthly < **$10** *(`RESEARCH_MONTHLY_BUDGET_USD`)*, calls today < **20** *(`RESEARCH_DAILY_MAX_CALLS`)*. Otherwise status `budget` and the last saved result.
+- One research per stock at a time (a second page load waits for the same call).
+- The page waits up to **45 s** *(`RESEARCH_WAIT_MS`)*; after that it shows "researching…" (status `pending`) and the result is saved for the next load.
+
+### 9.2 The research call ([`research/researchService.ts`](../src/lib/research/researchService.ts))
+- Model **Claude Opus 5.5** (`claude-opus-5-5`) *(env `RESEARCH_MODEL`)*, effort `medium`, server-side fallbacks on (if the model declines, the API answers with a fallback model in the same call).
+- Tools: Claude's **web search** (at most 5 searches) and a strict `report_research` tool whose schema defines the answer.
+- Input: company, industry, EPS (trailing, this year's and next year's estimates), the model's growth and the growth the price implies (§5.8).
+- Instructions: find known or scheduled events in the next 5 years that can materially change earnings (patent/exclusivity expiries, launches and approvals, guidance changes, regulation, litigation, M&A, share issuance, management changes, major contracts), in Japanese and English sources (IR, 決算短信, 有価証券報告書 「事業等のリスク」, TDnet/EDINET, reputable news); give an earnings impact only when sources support it; every event needs a source URL.
+- **Source check:** an event whose URL isn't among the pages the search actually retrieved is **dropped** (counted in `droppedUnsourced`). Impacts are clamped to ±90%.
+- Each event: type, title, expected year, direction, earnings impact %, confidence (high/medium/low), whether analysts' 1–2 year estimates already include it, source URL and title.
+- Cost: from the token usage the API returns, at $4 / $20 per million input/output tokens (Opus 5.5; table in [`research/pricing.ts`](../src/lib/research/pricing.ts)) plus $0.01 per web search (to confirm on the pricing page). A failed call is counted at $0.50.
+
+### 9.3 How events change the numbers ([`research/eventAdjustment.ts`](../src/lib/research/eventAdjustment.ts))
+- **Applied** only if: negative, sized, confidence high or medium, not already in analyst estimates, and within 5 years (or year unknown).
+- Each applied event is treated as a **permanent earnings drop starting in its year**: value removed = |impact| × (1 + discount rate)^−(years away). Several events multiply; the value never drops below 20% of the model value.
+- **Bear value** takes the whole shock at once: bear × (1 + total impact), total capped at −80%; bear ≤ value ≤ bull is kept.
+- **Positive events never raise the value** (conservative); likely ones are listed as "Possible upside … not counted in the fair value".
+- Total impact ≤ **−20%** → the fair value counts as **uncertain** (extra 5% discount for BUY).
+- Reasons: "Known event: {title} ({year}), about {impact}% of earnings — fair value lowered {n}% (source: …)".
+- Screen: "Known events (AI research)" card on the Overview tab lists every event with its source link and marks those that lowered the fair value.
+
+### 9.4 Storage
+Saved in `company_research`; every paid call (successful or failed) in `api_usage` with tokens, searches and cost (DATABASE.md).

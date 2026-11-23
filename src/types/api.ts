@@ -17,6 +17,7 @@ import type {
 } from './index';
 import type { MacroRegimeResult } from '@/lib/scoring/macroRegime';
 import type { FairValueEstimate } from '@/lib/formulas/fairValue';
+import type { ResearchEvent, ResearchStatus } from '@/lib/research/types';
 
 /**
  * The full response shape from GET /api/stock/[ticker].
@@ -47,6 +48,18 @@ export interface StockVerdictResponse {
   dcfAnalysis: DCFAnalysis;
   /** The fair value the verdict uses: method (DCF on FCF or earnings, or P/B–ROE for financials) and sanity-band adjustment */
   fairValueEstimate: FairValueEstimate;
+  /** AI research on known company events (ENGINE_SPEC §11); status says whether it ran, was cached, or is off */
+  research: {
+    status: ResearchStatus;
+    researchedAt: string | null;
+    model: string | null;
+    summary: string | null;
+    events: ResearchEvent[];
+    /** Titles of the events that lowered the fair value */
+    appliedTitles: string[];
+    /** Factor the fair value was multiplied by for those events (1 = unchanged) */
+    valueFactor: number;
+  };
   /** Phase 2: Japan 6-gate TOPIX filter (NOT_APPLICABLE for non-JP stocks) */
   japanFilter: JapanFilterResult;
 }

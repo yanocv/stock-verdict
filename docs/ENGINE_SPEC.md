@@ -323,3 +323,21 @@ Status: all approved 2026-10-25 (§10.4). Not built yet.
 2. **Approved:** exit plan keeps two take-profit steps (fair value: 25%; fair value + 10%: half of the rest); the third step is replaced by the user's trailing stop, so the last part can keep running.
 3. **Approved:** reward-to-risk bar for BUY is **2 : 1**, measured against the bear-case value and against the stop (§3 gate 6).
 4. **Approved in principle:** SQLite for the verdict log; details decided when step 5 starts.
+
+---
+
+## 11. Market expectations and AI research (owner decisions, 2026-11-23)
+
+**Why:** the model only sees past numbers and two years of analyst estimates. Things like a patent expiry (Astellas: Xtandi) are invisible to it, while the market prices them. The owner wants the app to consider such information **without hardcoding it**, by reading news and filings.
+
+**Decisions (owner, 2026-11-23):**
+1. Reverse DCF measures how far the market's expectations differ from the model's (CALCULATIONS §5.8, §6.4).
+2. Claude researches company events with web search; every event needs a retrieved source; the **engine** turns events into numbers by fixed, documented rules (CALCULATIONS §9). The AI never decides the verdict.
+3. Model: Claude Opus 5.5.
+4. Research on the stock page (cached 7 days); the screener uses saved research only.
+5. Cost protection: prepaid credits without auto-reload and a Console spend limit (owner sets up), plus the app's own budget guard (daily/monthly spend, daily calls) and per-call limits (5 searches, capped answer length). Key only in `.env.local`, only server-side.
+6. Built and tested with simulated API responses; the owner adds the API key last.
+
+**Status:** built 2026-11-23 (reverse DCF, expectations check, research, event rules, budget guard, cache, verdict log connected, Known events card). Live research not yet run (no key).
+
+**Open / later:** measure real cost on 3–5 stocks once the key is in; consider Japanese-source quality; a scheduled refresh after earnings; per-company P/E history (§9.2 idea 2); analyst revision signals.

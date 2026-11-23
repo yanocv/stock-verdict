@@ -42,6 +42,15 @@ export interface DCFAnalysis {
    * Rows vary WACC (low → high), columns vary growth (low → high).
    */
   sensitivityTable: SensitivityCell[][];
+  /**
+   * Reverse DCF: the starting growth rate at which this DCF equals today's
+   * price (same cash flow, discount rate, fade and terminal value). Compare
+   * with `growthRate` to see how far the market's expectations differ from
+   * the model's. Null when there is no cash-flow base.
+   */
+  impliedGrowthRate?: number | null;
+  /** 'below' / 'above' when the price lies outside what −30%…+60% growth can explain */
+  impliedGrowthBound?: 'below' | 'above' | null;
   /** Margin of safety at base-case fair value vs. current price */
   marginOfSafety: number | null;
 }

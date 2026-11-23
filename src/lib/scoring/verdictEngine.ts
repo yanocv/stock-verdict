@@ -60,6 +60,11 @@ export interface VerdictEngineParams {
   financialCompany?: boolean;
   /** Shareholder equity ÷ total assets (decimal), used for financials' Health */
   equityToAssets?: number | null;
+  /** Growth the price implies (reverse DCF, decimal) and the model's own starting growth */
+  impliedGrowth?: number | null;
+  modelGrowth?: number | null;
+  /** Extra reasons from outside the engine (e.g. AI-researched company events), shown as given */
+  extraReasons?: { bullish: string[]; bearish: string[] };
   /** Bear-case fair value per share (estimateFairValue().bear); the downside for the reward-to-risk check */
   bearFairValuePerShare?: number | null;
   /** Weights and thresholds; defaults to DEFAULT_ENGINE_PARAMS (override for backtests). */
@@ -98,6 +103,9 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     uncertainValue = false,
     bearFairValuePerShare = null,
     financialCompany = false,
+    impliedGrowth = null,
+    modelGrowth = null,
+    extraReasons,
     equityToAssets = null,
     engineParams: p = DEFAULT_ENGINE_PARAMS,
   } = params;
@@ -124,7 +132,13 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
 
   // Discount a BUY needs on top of the base steps: the market regime's bonus,
   // plus more when the fair value itself is shaky (P14)
-  const valueUncertain = uncertainValue || missingData.length >= p.marginOfSafety.uncertainMissingInputs;
+  // The market disagrees when the growth the price implies is far from the model's
+  const expectationGap =
+    impliedGrowth !== null && modelGrowth !== null ? modelGrowth - impliedGrowth : null;
+  const marketMorePessimistic = expectationGap !== null && expectationGap >= p.expectations.gapPts;
+  const marketMoreOptimistic = expectationGap !== null && expectationGap <= -p.expectations.gapPts;
+  const valueUncertain =
+    uncertainValue || marketMorePessimistic || missingData.length >= p.marginOfSafety.uncertainMissingInputs;
   const mosBonus = requiredMosBonus + (valueUncertain ? p.marginOfSafety.uncertaintyBonus : 0);
 
   // Missing fields (null) leave a score unchanged instead of counting as zero:
@@ -374,6 +388,23 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   } else if (priceOk && !qualityOk) {
     bearish.push(`Good price, but business quality ${quality.toFixed(1)} is below ${g.qualityMin} — WAIT instead of BUY`);
   }
+  if (impliedGrowth !== null && modelGrowth !== null) {
+    const pct = (g: number) => `${g >= 0 ? '+' : ''}${(g * 100).toFixed(1)}%`;
+    if (marketMorePessimistic) {
+      bearish.push(
+        `The price implies ${pct(impliedGrowth)} growth a year; the model assumes ${pct(modelGrowth)}. ` +
+          "The market may know something the numbers don't show (patents, guidance, regulation)"
+      );
+    } else if (marketMoreOptimistic) {
+      bearish.push(
+        `The price already assumes ${pct(impliedGrowth)} growth a year (model: ${pct(modelGrowth)}): high expectations are priced in`
+      );
+    }
+  }
+  if (extraReasons) {
+    bullish.push(...extraReasons.bullish);
+    bearish.push(...extraReasons.bearish);
+  }
   if (fallingKnife) {
     bearish.push('Good price, but still falling — consider buying in steps or waiting for the trend to turn');
   }
@@ -448,5 +479,6 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     rewardToRisk,
     quality,
     fallingKnife,
+    impliedGrowth,
   };
 }

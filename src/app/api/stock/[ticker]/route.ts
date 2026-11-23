@@ -18,6 +18,10 @@ import { runAdvancedDCFForStock } from '@/lib/formulas/dcfAdvanced';
 import { estimateFairValue, isFinancialCompany } from '@/lib/formulas/fairValue';
 import { completeBalanceSheet } from '@/lib/formulas/balanceSheet';
 import { completeFinancials } from '@/lib/formulas/statements';
+import { getVerdictLog, getResearchStore } from '@/lib/db/instances';
+import { getCompanyResearch, readResearchConfig } from '@/lib/research/getResearch';
+import { applyEvents, eventReasons } from '@/lib/research/eventAdjustment';
+import { DEFAULT_ENGINE_PARAMS } from '@/lib/scoring/params';
 import type { StockVerdictResponse, TechnicalIndicators } from '@/types';
 
 export async function GET(
@@ -89,13 +93,34 @@ export async function GET(
 
     // 6. Advanced DCF with WACC + sensitivity table
     const dcfAnalysis = runAdvancedDCFForStock(overview, financials, balanceSheet, financialHistory, macroData);
-    const fairValueEstimate = estimateFairValue({
+    const modelEstimate = estimateFairValue({
       overview,
       financials,
       history: financialHistory,
       dcf: dcfAnalysis,
       benchmarks,
     });
+
+    // 6b. AI research on known company events (cached, budget-guarded, off without a key).
+    // The engine turns sourced negative events into a lower fair value by fixed rules.
+    const currentYear = new Date().getUTCFullYear();
+    const isBank = modelEstimate.method === 'pb-roe';
+    const impliedGrowth = isBank ? null : dcfAnalysis.impliedGrowthRate ?? null;
+    const modelGrowth = isBank ? null : dcfAnalysis.growthRate;
+    const store = getResearchStore();
+    const researchOutcome = store
+      ? await getCompanyResearch(
+          {
+            ticker: overview.ticker, name: overview.name, industry: overview.industry, currency: overview.currency,
+            currentYear, impliedGrowth, modelGrowth, eps: financials.eps,
+            forwardEps: financials.forwardEps ?? null, nextYearEps: financials.nextYearEps ?? null,
+          },
+          { store, config: readResearchConfig() }
+        )
+      : { status: 'error' as const, research: null };
+    const events = researchOutcome.research?.events ?? [];
+    const eventAdjustment = applyEvents(modelEstimate, events, dcfAnalysis.wacc ?? 0.08, currentYear);
+    const fairValueEstimate = eventAdjustment.estimate;
 
     // 7. Run the master verdict engine with real macro, news, technicals and DCF
     const verdict = generateVerdict({
@@ -115,7 +140,11 @@ export async function GET(
       bearFairValuePerShare: fairValueEstimate.bear,
       financialCompany: isFinancialCompany(overview),
       equityToAssets: balanceSheet.totalAssets > 0 ? balanceSheet.shareholderEquity / balanceSheet.totalAssets : null,
-      uncertainValue: fairValueEstimate.method === 'dcf-earnings' || fairValueEstimate.adjustment === 'capped',
+      uncertainValue:
+        fairValueEstimate.method === 'dcf-earnings' || fairValueEstimate.adjustment === 'capped' || eventAdjustment.severe,
+      impliedGrowth,
+      modelGrowth,
+      extraReasons: eventReasons(eventAdjustment, events),
     });
 
     // 8. Run individual investor lenses
@@ -184,7 +213,43 @@ export async function GET(
       dcfAnalysis,
       fairValueEstimate,
       japanFilter,
+      research: {
+        status: researchOutcome.status,
+        researchedAt: researchOutcome.research?.researchedAt ?? null,
+        model: researchOutcome.research?.model ?? null,
+        summary: researchOutcome.research?.summary ?? null,
+        events,
+        appliedTitles: eventAdjustment.applied.map((a) => a.event.title),
+        valueFactor: eventAdjustment.factor,
+      },
     };
+
+    // 12. Decision journal: record the verdict and what it was based on (never blocks the response)
+    try {
+      getVerdictLog()?.save({
+        stock: {
+          ticker: overview.ticker, name: overview.name, sector: overview.sector, industry: overview.industry,
+          currency: overview.currency, financialCurrency: overview.financialCurrency,
+        },
+        source: 'full',
+        price: overview.currentPrice,
+        dataAsOf: priceHistory.at(-1)?.date ?? null,
+        verdict,
+        fairValue: {
+          bear: fairValueEstimate.bear, bull: fairValueEstimate.bull, method: fairValueEstimate.method,
+          note: fairValueEstimate.unavailableReason ?? fairValueEstimate.adjustment,
+        },
+        regime: macroRegime.regime,
+        regimeMosBonus: macroRegime.marginOfSafetyBonus / 100,
+        params: DEFAULT_ENGINE_PARAMS,
+        inputs: {
+          financials, balanceSheet, dcf: dcfAnalysis, technicals: technicalIndicators, macro: macroData,
+          research: response.research,
+        },
+      });
+    } catch (err) {
+      console.error('[verdict log] save failed:', err);
+    }
 
     return NextResponse.json(response);
   } catch (error: unknown) {

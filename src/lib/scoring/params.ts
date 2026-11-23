@@ -50,6 +50,13 @@ export interface EngineParams {
       fallingTechnicalMax: number;
     };
   };
+  /**
+   * Reverse DCF check (ENGINE_SPEC §11): when the growth the price implies
+   * and the model's growth differ by at least `gapPts` (decimal), the market
+   * disagrees. Model more optimistic → fair value counts as uncertain (extra
+   * discount for BUY); market more optimistic → "priced in" warning.
+   */
+  expectations: { gapPts: number };
   health: {
     /**
      * Financials' Health from shareholder equity ÷ total assets (decimal):
@@ -170,6 +177,7 @@ export const DEFAULT_ENGINE_PARAMS: EngineParams = {
     stopLossPct: 0.15,
     gates: { weakQualityMax: 3, qualityMin: 5.5, valueBuyMin: 8, fallingTechnicalMax: 4 },
   },
+  expectations: { gapPts: 0.06 },
   health: {
     bankEquityToAssets: { strong: 0.08, adequate: 0.05, weak: 0.03 },
   },

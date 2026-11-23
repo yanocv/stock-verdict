@@ -18,6 +18,7 @@ import { AINarrativeCard } from './AINarrativeCard';
 import { AnalystConsensusCard } from './AnalystConsensusCard';
 import { TechnicalSignalsCard } from './TechnicalSignalsCard';
 import { DCFSensitivityCard } from './DCFSensitivityCard';
+import { KnownEventsCard } from './KnownEventsCard';
 import {
   TrendingUp,
   TrendingDown,
@@ -172,6 +173,7 @@ export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
         <TabsContent value="overview" className="space-y-6 mt-4">
           {/* AI Narrative */}
           {data.aiNarrative && <AINarrativeCard narrative={data.aiNarrative} />}
+          {data.research && <KnownEventsCard research={data.research} />}
 
           {/* Reasons & Score */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -6,6 +6,7 @@ import {
   riskFreeRateFor,
   selectCashFlowBase,
   isInsurer,
+  solveImpliedGrowth,
   cashConversion,
   currentEps,
   getCurrencyMismatch,
@@ -218,7 +219,9 @@ describe('runAdvancedDCFForStock', () => {
       currentPrice: 50,
     });
     // No history or EPS: falls back to the latest FCF
-    expect(result).toEqual({ ...direct, currencyMismatch: null, cashFlowBasis: 'fcf' });
+    expect(result).toMatchObject({ ...direct, currencyMismatch: null, cashFlowBasis: 'fcf' });
+    // Price 50 is below the DCF value, so the market implies lower growth than the model
+    expect(result.impliedGrowthRate!).toBeLessThan(result.growthRate!);
     expect(result.baseCase).not.toBeNull();
   });
 
@@ -511,5 +514,28 @@ describe('insurers use the earnings basis', () => {
     expect(isInsurer({ industry: 'Insurance - Property & Casualty' })).toBe(true);
     expect(isInsurer({ industry: 'Insurance - Life' })).toBe(true);
     expect(isInsurer({ industry: 'Banks - Regional' })).toBe(false);
+  });
+});
+
+describe('solveImpliedGrowth (reverse DCF)', () => {
+  const base = { cashFlow: 1_000, netDebt: 0, sharesOutstanding: 100, wacc: 0.08, terminalGrowthRate: 0.02, projectionYears: 10 };
+  const valueAt = (g: number) => {
+    const { pvProjected, pvTerminal } = projectCashFlows(1_000, g, 0.08, 0.02, 10);
+    return (pvProjected + pvTerminal) / 100;
+  };
+
+  it('finds the growth at which the DCF equals the price (round trip)', () => {
+    for (const g of [-0.05, 0.03, 0.12]) {
+      expect(solveImpliedGrowth({ ...base, price: valueAt(g) })!.growth).toBeCloseTo(g, 3);
+    }
+  });
+
+  it('reports a bound when the price is outside what growth can explain', () => {
+    expect(solveImpliedGrowth({ ...base, price: 1 })).toEqual({ growth: -0.3, bound: 'below' });
+    expect(solveImpliedGrowth({ ...base, price: 1e9 })).toEqual({ growth: 0.6, bound: 'above' });
+  });
+
+  it('returns null without a positive cash flow', () => {
+    expect(solveImpliedGrowth({ ...base, cashFlow: 0, price: 100 })).toBeNull();
   });
 });

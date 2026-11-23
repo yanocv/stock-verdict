@@ -139,6 +139,15 @@ erDiagram
 
 `user_rules` has no relations yet: there is one user. With sign-in, a `users` table arrives and `user_id` is added to `user_rules`, `watchlist_items`, `positions` and `alert_rules`.
 
+### Research tables (added 2026-11-23)
+
+| Table | Columns | Purpose |
+|---|---|---|
+| `company_research` | id, ticker, researched_at, model, research_json, cost_usd | Saved AI research per stock (CALCULATIONS §9); the newest is reused for 7 days |
+| `api_usage` | id, at, purpose, ticker, model, input_tokens, output_tokens, web_searches, cost_usd, ok | Every paid API call, successful or not, for the budget guard and cost history |
+
+`verdict_inputs` also has `research_json`: the research a verdict used.
+
 ## 2. Why it looks like this
 
 | Choice | Reason |

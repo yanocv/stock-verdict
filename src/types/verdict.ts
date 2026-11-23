@@ -29,6 +29,8 @@ export interface Verdict {
   rewardToRisk?: number | null;
   /** Business quality 0–10: average of the financials and health scores (gate input) */
   quality?: number;
+  /** Growth a year the price implies (reverse DCF, decimal), when computed */
+  impliedGrowth?: number | null;
   /** BUY while the price is still falling: show the "buy in steps or wait for the trend" warning */
   fallingKnife?: boolean;
 }

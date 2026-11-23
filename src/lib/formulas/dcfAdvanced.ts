@@ -518,7 +518,59 @@ export function runAdvancedDCFForStock(
     currentPrice: overview.currentPrice,
   });
   const cashFlowBasis = base?.basis ?? null;
+  const implied =
+    base && !currencyMismatch && analysis.wacc !== null
+      ? solveImpliedGrowth({
+          cashFlow: base.amount,
+          netDebt: base.basis === 'earnings' ? 0 : balanceSheet.totalDebt - balanceSheet.cash,
+          sharesOutstanding: overview.sharesOutstanding,
+          wacc: analysis.wacc,
+          terminalGrowthRate: analysis.terminalGrowthRate,
+          projectionYears: analysis.projectionYears,
+          price: overview.currentPrice,
+        })
+      : null;
+  Object.assign(analysis, {
+    impliedGrowthRate: implied?.growth ?? null,
+    impliedGrowthBound: implied?.bound ?? null,
+  });
   return currencyMismatch
     ? { ...analysis, sensitivityTable: [], currencyMismatch, cashFlowBasis }
     : { ...analysis, currencyMismatch, cashFlowBasis };
+}
+
+/** Range searched by the reverse DCF; prices outside it are reported as a bound. */
+const IMPLIED_GROWTH_RANGE = { min: -0.3, max: 0.6 } as const;
+
+/**
+ * Reverse DCF: finds the starting growth rate at which the DCF value per
+ * share equals the price, by bisection (value rises with growth). Uses the
+ * same projection as the fair value (growth fading to the terminal rate over
+ * the projection years). Returns null when the inputs can't produce a value.
+ */
+export function solveImpliedGrowth(input: {
+  cashFlow: number;
+  netDebt: number;
+  sharesOutstanding: number;
+  wacc: number;
+  terminalGrowthRate: number;
+  projectionYears: number;
+  price: number;
+}): { growth: number; bound: 'below' | 'above' | null } | null {
+  const { cashFlow, netDebt, sharesOutstanding, wacc, terminalGrowthRate, projectionYears, price } = input;
+  if (cashFlow <= 0 || sharesOutstanding <= 0 || price <= 0 || wacc <= terminalGrowthRate) {return null;}
+
+  const valueAt = (g: number) => {
+    const { pvProjected, pvTerminal } = projectCashFlows(cashFlow, g, wacc, terminalGrowthRate, projectionYears);
+    return (pvProjected + pvTerminal - netDebt) / sharesOutstanding;
+  };
+  let lo: number = IMPLIED_GROWTH_RANGE.min;
+  let hi: number = IMPLIED_GROWTH_RANGE.max;
+  if (valueAt(lo) >= price) {return { growth: lo, bound: 'below' };}
+  if (valueAt(hi) <= price) {return { growth: hi, bound: 'above' };}
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (valueAt(mid) < price) {lo = mid;} else {hi = mid;}
+  }
+  return { growth: Math.round(((lo + hi) / 2) * 10000) / 10000, bound: null };
 }

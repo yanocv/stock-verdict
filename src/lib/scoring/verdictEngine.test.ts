@@ -745,3 +745,25 @@ describe('AVOID is for a weak business only', () => {
     expect(r.recommendation).toBe('WAIT');
   });
 });
+
+describe('market expectations gap (reverse DCF)', () => {
+  const base = { financials: strongMetrics, balanceSheet, price: 72, industryBenchmarks: DEFAULT_BENCHMARKS, dcfFairValuePerShare: 100 };
+
+  it('treats the value as uncertain when the market is far more pessimistic than the model', () => {
+    const agree = generateVerdict({ ...base, impliedGrowth: 0.05, modelGrowth: 0.07 });
+    const disagree = generateVerdict({ ...base, impliedGrowth: -0.04, modelGrowth: 0.07 });
+    expect(disagree.suggestedBuyPrice).toBeLessThan(agree.suggestedBuyPrice!); // extra 5% discount
+    expect(disagree.reasons.bearish.some((r) => r.includes('may know something'))).toBe(true);
+    expect(disagree.impliedGrowth).toBe(-0.04);
+  });
+
+  it('warns when the price already assumes far more growth than the model', () => {
+    const r = generateVerdict({ ...base, impliedGrowth: 0.2, modelGrowth: 0.05 });
+    expect(r.reasons.bearish.some((x) => x.includes('priced in'))).toBe(true);
+  });
+
+  it('shows extra reasons from outside the engine', () => {
+    const r = generateVerdict({ ...base, extraReasons: { bullish: [], bearish: ['Known event: X'] } });
+    expect(r.reasons.bearish).toContain('Known event: X');
+  });
+});

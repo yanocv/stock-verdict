@@ -10,6 +10,9 @@ import { runAdvancedDCFForStock } from '@/lib/formulas/dcfAdvanced';
 import { estimateFairValue, isFinancialCompany } from '@/lib/formulas/fairValue';
 import { completeBalanceSheet } from '@/lib/formulas/balanceSheet';
 import { completeFinancials } from '@/lib/formulas/statements';
+import { getVerdictLog, getResearchStore } from '@/lib/db/instances';
+import { applyEvents, eventReasons } from '@/lib/research/eventAdjustment';
+import { DEFAULT_ENGINE_PARAMS } from '@/lib/scoring/params';
 import { fetchFinancialHistory } from '@/lib/services/financialHistoryService';
 
 export interface ScreenerResult {
@@ -38,13 +41,14 @@ interface MarketContext {
   macroScore: number;
   /** Extra margin of safety (decimal) required by the market regime */
   requiredMosBonus: number;
+  regime: string;
 }
 
 async function processTicker(
   ticker: string,
   name: string,
   sector: string,
-  { macroData, macroScore, requiredMosBonus }: MarketContext
+  { macroData, macroScore, requiredMosBonus, regime }: MarketContext
 ): Promise<ScreenerResult> {
   // History is needed so screener fair values match the full analysis
   const [stockData, history] = await Promise.all([fetchStockData(ticker), fetchFinancialHistory(ticker)]);
@@ -53,7 +57,13 @@ async function processTicker(
   const balanceSheet = completeBalanceSheet(stockData.balanceSheet, history);
   const benchmarks = getBenchmarksForSector(overview.sector || sector, overview.industry);
   const dcfAnalysis = runAdvancedDCFForStock(overview, financials, balanceSheet, history, macroData);
-  const fairValue = estimateFairValue({ overview, financials, history, dcf: dcfAnalysis, benchmarks });
+  const modelEstimate = estimateFairValue({ overview, financials, history, dcf: dcfAnalysis, benchmarks });
+  // Saved AI research (free; the screener never starts new research), so verdicts match the stock page
+  const events = getResearchStore()?.latest(overview.ticker)?.events ?? [];
+  const currentYear = new Date().getUTCFullYear();
+  const eventAdjustment = applyEvents(modelEstimate, events, dcfAnalysis.wacc ?? 0.08, currentYear);
+  const fairValue = eventAdjustment.estimate;
+  const isBank = modelEstimate.method === 'pb-roe';
 
   const verdict = generateVerdict({
     financials,
@@ -71,8 +81,34 @@ async function processTicker(
     bearFairValuePerShare: fairValue.bear,
     financialCompany: isFinancialCompany(overview),
     equityToAssets: balanceSheet.totalAssets > 0 ? balanceSheet.shareholderEquity / balanceSheet.totalAssets : null,
-    uncertainValue: fairValue.method === 'dcf-earnings' || fairValue.adjustment === 'capped',
+    uncertainValue: fairValue.method === 'dcf-earnings' || fairValue.adjustment === 'capped' || eventAdjustment.severe,
+    impliedGrowth: isBank ? null : dcfAnalysis.impliedGrowthRate ?? null,
+    modelGrowth: isBank ? null : dcfAnalysis.growthRate,
+    extraReasons: eventReasons(eventAdjustment, events),
   });
+
+  try {
+    getVerdictLog()?.save({
+      stock: {
+        ticker: overview.ticker, name: overview.name, sector: overview.sector, industry: overview.industry,
+        currency: overview.currency, financialCurrency: overview.financialCurrency,
+      },
+      source: 'screener',
+      price: overview.currentPrice,
+      dataAsOf: null,
+      verdict,
+      fairValue: {
+        bear: fairValue.bear, bull: fairValue.bull, method: fairValue.method,
+        note: fairValue.unavailableReason ?? fairValue.adjustment,
+      },
+      regime,
+      regimeMosBonus: requiredMosBonus,
+      params: DEFAULT_ENGINE_PARAMS,
+      inputs: { financials, balanceSheet, dcf: dcfAnalysis, macro: macroData, research: events },
+    });
+  } catch (err) {
+    console.error('[verdict log] save failed:', err);
+  }
 
   const upside =
     verdict.fairValue !== null && overview.currentPrice > 0
@@ -104,10 +140,12 @@ export async function GET() {
       try {
         // Fetch macro once — shared across all tickers
         const macroData = await fetchMacroData();
+        const regimeResult = determineMacroRegime(macroData);
         const market: MarketContext = {
           macroData,
           macroScore: scoreMacro(macroData),
-          requiredMosBonus: determineMacroRegime(macroData).marginOfSafetyBonus / 100,
+          requiredMosBonus: regimeResult.marginOfSafetyBonus / 100,
+          regime: regimeResult.regime,
         };
 
         let processed = 0;

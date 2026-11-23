@@ -4,7 +4,8 @@
  *
  * Dates are ISO-8601 text (UTC). JSON columns hold display-only detail.
  * Verdicts are append-only: triggers refuse UPDATE and DELETE, so the log
- * stays an honest decision journal.
+ * stays an honest decision journal. company_research caches AI research per
+ * stock; api_usage records every paid API call for the budget guard.
  */
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS stocks (
@@ -62,11 +63,36 @@ CREATE TABLE IF NOT EXISTS verdict_inputs (
   balance_sheet_json TEXT,
   dcf_json           TEXT,
   technicals_json    TEXT,
-  macro_json         TEXT
+  macro_json         TEXT,
+  research_json      TEXT
+);
+
+CREATE TABLE IF NOT EXISTS company_research (
+  id            INTEGER PRIMARY KEY,
+  ticker        TEXT NOT NULL,
+  researched_at TEXT NOT NULL,
+  model         TEXT NOT NULL,
+  research_json TEXT NOT NULL,
+  cost_usd      REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS api_usage (
+  id            INTEGER PRIMARY KEY,
+  at            TEXT NOT NULL,
+  purpose       TEXT NOT NULL,
+  ticker        TEXT,
+  model         TEXT,
+  input_tokens  INTEGER,
+  output_tokens INTEGER,
+  web_searches  INTEGER,
+  cost_usd      REAL NOT NULL,
+  ok            INTEGER NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS verdicts_by_ticker ON verdicts (ticker, created_at);
 CREATE INDEX IF NOT EXISTS verdicts_by_date ON verdicts (created_at, recommendation);
+CREATE INDEX IF NOT EXISTS research_by_ticker ON company_research (ticker, researched_at);
+CREATE INDEX IF NOT EXISTS api_usage_by_time ON api_usage (at);
 
 CREATE TRIGGER IF NOT EXISTS verdicts_append_only_update BEFORE UPDATE ON verdicts
 BEGIN SELECT RAISE(ABORT, 'verdicts are append-only'); END;

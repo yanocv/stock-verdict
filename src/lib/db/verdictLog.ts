@@ -45,6 +45,7 @@ export interface VerdictLogEntry {
     dcf?: unknown;
     technicals?: unknown;
     macro?: unknown;
+    research?: unknown;
   };
 }
 
@@ -86,12 +87,18 @@ export function hashParams(params: EngineParams): string {
 
 const json = (v: unknown): string | null => (v === undefined ? null : JSON.stringify(v));
 
-/** Opens (and creates if needed) a SQLite verdict log. Pass ':memory:' for tests. */
-export function openVerdictLog(path: string = DEFAULT_DB_PATH, now: () => Date = () => new Date()): VerdictLog {
+/** Opens (and creates if needed) the database file with the full schema. Pass ':memory:' for tests. */
+export function openDatabase(path: string = DEFAULT_DB_PATH): DatabaseSync {
   if (path !== ':memory:') {mkdirSync(dirname(path), { recursive: true });}
   const db = new DatabaseSync(path);
   db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;');
   db.exec(SCHEMA);
+  return db;
+}
+
+/** Opens (and creates if needed) a SQLite verdict log. Pass ':memory:' for tests. */
+export function openVerdictLog(path: string = DEFAULT_DB_PATH, now: () => Date = () => new Date()): VerdictLog {
+  const db = openDatabase(path);
 
   const upsertStock = db.prepare(`
     INSERT INTO stocks (ticker, name, market, sector, industry, currency, financial_currency, updated_at)
@@ -110,8 +117,8 @@ export function openVerdictLog(path: string = DEFAULT_DB_PATH, now: () => Date =
       fair_value_note, suggested_buy, reward_to_risk, regime, regime_mos_bonus, missing_data_json, reasons_json)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const insertInputs = db.prepare(`
-    INSERT INTO verdict_inputs (verdict_id, financials_json, balance_sheet_json, dcf_json, technicals_json, macro_json)
-    VALUES (?, ?, ?, ?, ?, ?)`);
+    INSERT INTO verdict_inputs (verdict_id, financials_json, balance_sheet_json, dcf_json, technicals_json, macro_json, research_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`);
 
   const engineVersionId = (params: EngineParams, appVersion: string | null, at: string): number => {
     const hash = hashParams(params);
@@ -157,7 +164,7 @@ export function openVerdictLog(path: string = DEFAULT_DB_PATH, now: () => Date =
           ).lastInsertRowid
         );
         const i = entry.inputs;
-        insertInputs.run(id, json(i.financials), json(i.balanceSheet), json(i.dcf), json(i.technicals), json(i.macro));
+        insertInputs.run(id, json(i.financials), json(i.balanceSheet), json(i.dcf), json(i.technicals), json(i.macro), json(i.research));
         db.exec('COMMIT');
         return id;
       } catch (err) {
