@@ -264,24 +264,6 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     news: newsScore,
   };
 
-  // Decide on the score the user sees (one decimal), so "AVOID 4.0" can't happen
-  const shown = scores.overall;
-  const byScore: VerdictRecommendation =
-    shown > p.verdict.buyMin ? 'BUY' : shown >= p.verdict.avoidMax ? 'WAIT' : 'AVOID';
-
-  // Reward-to-risk (P13): upside to fair value vs the downside, which is the
-  // larger of the drop to the bear value and the stop-loss (you risk at least
-  // your stop, even when the bear value is just under or above the price)
-  const fairForRatio = dcfFairValuePerShare !== undefined ? dcfFairValuePerShare : null;
-  let rewardToRisk: number | null = null;
-  if (fairForRatio !== null && price > 0) {
-    const stopPrice = price * (1 - p.verdict.stopLossPct);
-    const downsideTo = bearFairValuePerShare !== null ? Math.min(bearFairValuePerShare, stopPrice) : stopPrice;
-    rewardToRisk = Math.round(((fairForRatio - price) / (price - downsideTo)) * 10) / 10;
-  }
-  const failsRewardToRisk = rewardToRisk !== null && rewardToRisk < p.verdict.minRewardToRisk;
-  const recommendation: VerdictRecommendation = byScore === 'BUY' && failsRewardToRisk ? 'WAIT' : byScore;
-
   if (currencyMismatch) {missingData.push('fair value (financials in a different currency)');}
   if (nonOperatingEarnings) {missingData.push('fair value (profit not from operations)');}
 
@@ -314,6 +296,35 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   // A given fair value wins, including null ("no reliable fair value"):
   // the simple fallback above only serves callers that don't estimate one.
   const displayFairValue = dcfFairValuePerShare !== undefined ? dcfFairValuePerShare : fairValue;
+
+  // Reward-to-risk (P13): upside to fair value vs the downside, which is the
+  // larger of the drop to the bear value and the stop-loss (you risk at least
+  // your stop, even when the bear value is just under or above the price)
+  let rewardToRisk: number | null = null;
+  if (displayFairValue !== null && price > 0) {
+    const stopPrice = price * (1 - p.verdict.stopLossPct);
+    const downsideTo = bearFairValuePerShare !== null ? Math.min(bearFairValuePerShare, stopPrice) : stopPrice;
+    rewardToRisk = Math.round(((displayFairValue - price) / (price - downsideTo)) * 10) / 10;
+  }
+  const failsRewardToRisk = rewardToRisk !== null && rewardToRisk < p.verdict.minRewardToRisk;
+
+  // Verdict by gates, not by the average (owner, 2026-11-23; ENGINE_SPEC §3).
+  // The average squeezes scores toward 5, and a cheap stock usually has a
+  // falling trend, so BUY was practically unreachable. Now: a weak business is
+  // AVOID; BUY needs a sound business, a good price, a fair value and 2 : 1.
+  // The trend no longer blocks a BUY; a falling price adds a warning instead.
+  const g = p.verdict.gates;
+  const quality = Math.round(((financialsScore + healthScore) / 2) * 10) / 10;
+  const shown = scores.overall; // one decimal, as displayed
+  const qualityOk = quality >= g.qualityMin;
+  const priceOk = scores.valuation >= g.valueBuyMin;
+  const recommendation: VerdictRecommendation =
+    shown < p.verdict.avoidMax || quality < g.weakQualityMax
+      ? 'AVOID'
+      : qualityOk && priceOk && displayFairValue !== null && !failsRewardToRisk
+        ? 'BUY'
+        : 'WAIT';
+  const fallingKnife = recommendation === 'BUY' && scores.technical <= g.fallingTechnicalMax;
   const entryFactor = p.suggestedBuy.fairValueFactor - mosBonus;
   const suggestedBuyPrice =
     displayFairValue !== null
@@ -326,11 +337,19 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
 
   if (rewardToRisk !== null) {
     const min = p.verdict.minRewardToRisk;
-    if (byScore === 'BUY' && failsRewardToRisk) {
+    if (qualityOk && priceOk && failsRewardToRisk) {
       bearish.push(`Upside vs downside is ${rewardToRisk.toFixed(1)} : 1, below ${min} : 1 — WAIT instead of BUY`);
     } else if (rewardToRisk >= min) {
       bullish.push(`Upside vs downside is ${rewardToRisk.toFixed(1)} : 1`);
     }
+  }
+  if (quality < g.weakQualityMax) {
+    bearish.push(`Weak business: quality ${quality.toFixed(1)} of 10 (financials and health) — AVOID`);
+  } else if (priceOk && !qualityOk) {
+    bearish.push(`Good price, but business quality ${quality.toFixed(1)} is below ${g.qualityMin} — WAIT instead of BUY`);
+  }
+  if (fallingKnife) {
+    bearish.push('Good price, but still falling — consider buying in steps or waiting for the trend to turn');
   }
 
   if (roe !== null && earningsReliable && roe > industryBenchmarks.roe.good) {bullish.push(`Strong ROE of ${roe.toFixed(1)}%`);}
@@ -395,5 +414,7 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     lynchCategory,
     missingData,
     rewardToRisk,
+    quality,
+    fallingKnife,
   };
 }

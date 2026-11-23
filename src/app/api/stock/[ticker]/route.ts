@@ -17,6 +17,7 @@ import { calculateRSI, classifyRSI, calculateSMA, extractCloses } from '@/lib/fo
 import { runAdvancedDCFForStock } from '@/lib/formulas/dcfAdvanced';
 import { estimateFairValue } from '@/lib/formulas/fairValue';
 import { completeBalanceSheet } from '@/lib/formulas/balanceSheet';
+import { completeFinancials } from '@/lib/formulas/statements';
 import type { StockVerdictResponse, TechnicalIndicators } from '@/types';
 
 export async function GET(
@@ -45,7 +46,9 @@ export async function GET(
       fetchPriceHistory(normalizedTicker),
     ]);
 
-    const { overview, financials, incomeStatement, calendarData, analystConsensus } = stockData;
+    const { overview, incomeStatement, calendarData, analystConsensus } = stockData;
+    // Free cash flow from the annual statements; Yahoo's 12-month figure is unreliable
+    const financials = completeFinancials(stockData.financials, financialHistory);
     // Yahoo's snapshot has no balance sheet any more; take it from the statements
     const balanceSheet = completeBalanceSheet(stockData.balanceSheet, financialHistory);
 

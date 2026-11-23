@@ -28,6 +28,7 @@ Tickers: four digits (`7203`) become Tokyo tickers (`7203.T`).
 | Data | Source | File |
 |---|---|---|
 | Price, ratios (P/E, ROE, margins…), total debt, cash, analyst EPS estimate | Yahoo Finance `quoteSummary` | `services/yahooFinance.ts` |
+| Free cash flow used by scores and lens checks | Latest **annual statement** figure (`completeFinancials`); Yahoo's last-12-month figure only when there are no statements. The quote field was unreliable (TDK −¥34B vs +¥209B reported, Nov 2026) | `formulas/statements.ts` |
 | Balance sheet (equity, assets, liabilities, retained earnings) | Latest quarterly or annual statement, whichever is newer (`completeBalanceSheet`). Yahoo's snapshot has returned no balance sheet since Nov 2024; debt and cash from the snapshot are kept when present | `formulas/balanceSheet.ts` |
 | Annual and quarterly statements (income, balance, cash flow) | Yahoo Finance time series | `services/financialHistoryService.ts` |
 | Daily prices (5 years) | Yahoo Finance | `financialHistoryService.ts` `fetchPriceHistory` |
@@ -152,7 +153,7 @@ A range around the base value, so a single number isn't presented as certain. It
 ## 6. Verdict ([`scoring/verdictEngine.ts`](../src/lib/scoring/verdictEngine.ts) `generateVerdict`)
 
 ### 6.1 Sector benchmarks ([`benchmarks/industries.ts`](../src/lib/benchmarks/industries.ts))
-Each sector has bands for P/E, P/S, operating margin, ROE and debt/equity. Lookup (`resolveSectorKey`): Yahoo **industry** first (e.g. "Auto Manufacturers" → Auto Manufacturing, "Banks…" → Banking, "Telecom…" → Telecom, "Drug Manufacturers"/"Biotechnology" → Pharma/Biotech, retail industries → Retail), then the exact sector, then a sector alias (Healthcare → Pharma/Biotech, Consumer Defensive/Cyclical → Consumer Goods), else defaults (P/E 12/20/35, ROE 8/15/25…). **Industrials** (P/E 10/16/28, ROE 5/10/15, operating margin 3/7/12, D/E 0.3/0.8/1.5) and **Basic Materials** (P/E 9/14/24, ROE 5/9/14, operating margin 4/9/15) have their own sets since 2026-10-25; Utilities, Real Estate and Communication Services (non-telecom) still use the defaults.
+Each sector has bands for P/E, P/S, operating margin, ROE and debt/equity. Lookup (`resolveSectorKey`): Yahoo **industry** first (e.g. "Auto Manufacturers" → Auto Manufacturing, "Banks…" → Banking, "Telecom…" → Telecom, "Drug Manufacturers"/"Biotechnology" → Pharma/Biotech, retail industries → Retail), then the exact sector, then a sector alias (Healthcare → Pharma/Biotech, Consumer Defensive/Cyclical → Consumer Goods), else defaults (P/E 12/20/35, ROE 8/15/25…). **Tech Hardware** — industries Electronic Components, Consumer Electronics, Computer Hardware, Communication Equipment, Scientific & Technical Instruments (P/E 10/18/30, ROE 5/10/15, operating margin 4/9/15, D/E 0.3/0.8/1.5) — and **Semiconductors** — industries starting with "Semiconductor" (P/E 12/22/40, ROE 8/14/22, operating margin 8/15/25, D/E 0.2/0.6/1.2) have their own sets since 2026-11-23, so hardware and chip makers aren't judged against software-like Technology bands. **Industrials** (P/E 10/16/28, ROE 5/10/15, operating margin 3/7/12, D/E 0.3/0.8/1.5) and **Basic Materials** (P/E 9/14/24, ROE 5/9/14, operating margin 4/9/15) have their own sets since 2026-10-25; Utilities, Real Estate and Communication Services (non-telecom) still use the defaults.
 
 ### 6.2 Sub-scores (each starts at 5, kept within 0–10)
 **Financials** (quality of earnings)
@@ -197,20 +198,23 @@ Without price history (screener): beta 0–1.2 +1 · > 2 −1.5; EPS growth > 15
 Each headline: +0.2 per bullish keyword, −0.2 per bearish keyword (e.g. "upgrade", "beat" vs "downgrade", "lawsuit"), kept within −1…+1. News score = (average + 1) × 5. No news → 5. English headlines only; a weak signal, hence the small weight.
 
 ### 6.4 Overall score and verdict
-Overall = weighted average *(param `weights`)*: valuation **35%**, financials **20%**, health **20%**, technical **12%**, macro **7%**, news **6%**.
+Overall = weighted average *(param `weights`)*: valuation **35%**, financials **20%**, health **20%**, technical **12%**, macro **7%**, news **6%**. It is **displayed** (owner decision ENGINE_SPEC §8.3) and still triggers AVOID below 4, but since 2026-11-23 it **no longer decides BUY**: the average squeezed scores toward 5, and a cheap stock usually has a falling trend, so BUY was practically unreachable (TDK: valuation 10, reward-to-risk 6.7 : 1, overall 7.0 → WAIT).
 
-| Overall | Verdict *(param `verdict`)* |
+**Verdict gates** *(params `verdict.gates`, `verdict.avoidMax`, `verdict.minRewardToRisk`)*. Quality = average of the financials and health scores, one decimal (returned as `verdict.quality`).
+
+| Verdict | Rule |
 |---|---|
-| > 7 | **BUY** |
-| 4 – 7 | **WAIT** |
-| < 4 | **AVOID** |
+| **AVOID** | Quality **< 3** (weak business), or overall **< 4** (shown to one decimal) |
+| **BUY** | All of: quality **≥ 5.5**; valuation score **≥ 8**; a fair value exists (§5); reward ÷ risk **≥ 2** (below) |
+| **WAIT** | Everything else |
 
-The verdict is decided on the overall score **as displayed** (rounded to one decimal), so a score shown as 4.0 is always WAIT.
+- **Falling-price warning** (`verdict.fallingKnife`): a BUY whose technical score is **≤ 4** (price below its moving averages) stays BUY, and the screen adds: "Good price, but still falling — consider buying in steps or waiting for the trend to turn." The trend informs timing; it no longer blocks the verdict.
+- **Reasons** explain a missed BUY: "Good price, but business quality X is below 5.5 — WAIT instead of BUY", "Upside vs downside is X : 1, below 2 : 1 — WAIT instead of BUY", or "Weak business: quality X of 10 — AVOID".
+- `verdict.buyMin` (7) no longer decides anything except the confidence distance (§6.6).
 
-**Reward-to-risk gate** *(param `verdict.minRewardToRisk` 2, `verdict.stopLossPct` 0.15)*: a BUY by score stays BUY only if reward ÷ risk ≥ **2**, otherwise it becomes **WAIT**.
+**Reward-to-risk** *(param `verdict.minRewardToRisk` 2, `verdict.stopLossPct` 0.15)*:
 - Reward = fair value − price. Risk = the **larger** of (price − bear value, §5.7) and the 15% stop-loss (price × 0.15): you risk at least your stop, even when the bear value is just under or above the price.
-- The ratio is rounded to one decimal and returned as `verdict.rewardToRisk`; it appears in the reasons ("Upside vs downside is 2.4 : 1", or "… below 2 : 1 — WAIT instead of BUY").
-- No fair value → no ratio, and the gate is skipped (missing data stays neutral).
+- Rounded to one decimal, returned as `verdict.rewardToRisk`, shown in the reasons. No fair value → no ratio (and no BUY).
 
 ### 6.5 Suggested entry price
 - With a fair value: fair value × (0.75 − regime bonus − uncertainty bonus). Neutral regime, certain value → 70%; neutral regime, uncertain value → 65%.

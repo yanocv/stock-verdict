@@ -21,7 +21,10 @@ export interface EngineParams {
     news: number;
   };
   verdict: {
-    /** overall > buyMin → BUY */
+    /**
+     * No longer decides BUY (gates do, see `gates`); still the upper
+     * threshold the confidence distance is measured from.
+     */
     buyMin: number;
     /** overall < avoidMax → AVOID; between → WAIT */
     avoidMax: number;
@@ -33,6 +36,19 @@ export interface EngineParams {
     minRewardToRisk: number;
     /** Stop-loss below the entry price used as the downside in that case (decimal) */
     stopLossPct: number;
+    /**
+     * Verdict gates (owner, 2026-11-23). Quality = average of the financials
+     * and health scores. AVOID: quality < weakQualityMax (or overall <
+     * avoidMax). BUY: quality ≥ qualityMin, valuation ≥ valueBuyMin, a fair
+     * value, and reward-to-risk ≥ minRewardToRisk. A BUY with technical ≤
+     * fallingTechnicalMax gets the falling-price warning. Otherwise WAIT.
+     */
+    gates: {
+      weakQualityMax: number;
+      qualityMin: number;
+      valueBuyMin: number;
+      fallingTechnicalMax: number;
+    };
   };
   confidence: {
     /** Confidence at a threshold, before distance is added */
@@ -144,6 +160,7 @@ export const DEFAULT_ENGINE_PARAMS: EngineParams = {
     avoidMax: 4,
     minRewardToRisk: 2,
     stopLossPct: 0.15,
+    gates: { weakQualityMax: 3, qualityMin: 5.5, valueBuyMin: 8, fallingTechnicalMax: 4 },
   },
   confidence: {
     base: 50,

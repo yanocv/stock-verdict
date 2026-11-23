@@ -26,6 +26,7 @@
   "missingData": "Missing data (lowers confidence): {fields}",
   "fairValue": "Fair Value",
   "fairValueRange": "Range (bear – bull)",
+  "fallingKnife": "Good price, but still falling — consider buying in steps or waiting for the trend to turn.",
   "buyBelow": "Buy Below",
   "analysis": "Analysis",
   "bullish": "Bullish",

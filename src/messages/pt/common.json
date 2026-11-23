@@ -26,6 +26,7 @@
   "missingData": "Dados ausentes (reduz a confiança): {fields}",
   "fairValue": "Valor Justo",
   "fairValueRange": "Faixa (pessimista – otimista)",
+  "fallingKnife": "Preço bom, mas ainda em queda — considere comprar em etapas ou esperar a tendência virar.",
   "buyBelow": "Comprar Abaixo de",
   "analysis": "Análise",
   "bullish": "Otimista",

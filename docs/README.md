@@ -1,6 +1,7 @@
 # KabuCheck documentation
 
 > **Docs-first phase** (owner decision, 2026-11-19): coding is paused. Every document below is written and approved first; the code is then revisited and built against them.
+> Exception (owner, 2026-11-23): targeted verdict fixes resumed because BUY verdicts were practically impossible; each is documented in `CALCULATIONS.md` and `ENGINE_SPEC.md` as usual.
 > Language: **English**. Format: **Markdown** in this folder (diagrams in Mermaid), plus **Excel** (`.xlsx`) for the table-heavy documents.
 
 ## Documentation set

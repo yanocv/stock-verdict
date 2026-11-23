@@ -47,8 +47,16 @@ describe('getBenchmarksForSector with Yahoo names', () => {
   });
 
   it('keeps exact sector matches and falls back to the default', () => {
-    expect(getBenchmarksForSector('Technology', 'Electronic Components')).toBe(INDUSTRY_BENCHMARKS.Technology);
+    expect(getBenchmarksForSector('Technology', 'Information Technology Services')).toBe(INDUSTRY_BENCHMARKS.Technology);
     expect(getBenchmarksForSector('Industrials', 'Specialty Industrial Machinery')).toBe(INDUSTRY_BENCHMARKS.Industrials);
     expect(getBenchmarksForSector('Utilities', 'Utilities - Regulated Electric')).toBe(DEFAULT_BENCHMARKS);
+  });
+});
+
+describe('hardware and semiconductor bands', () => {
+  it('maps electronic components and chips away from the software-like Technology bands', () => {
+    expect(getBenchmarksForSector('Technology', 'Electronic Components')).toBe(INDUSTRY_BENCHMARKS['Tech Hardware']);
+    expect(getBenchmarksForSector('Technology', 'Semiconductor Equipment & Materials')).toBe(INDUSTRY_BENCHMARKS.Semiconductors);
+    expect(getBenchmarksForSector('Technology', 'Software - Application')).toBe(INDUSTRY_BENCHMARKS.Technology);
   });
 });

@@ -121,6 +121,9 @@ export function VerdictResultPanel({ data }: VerdictResultPanelProps) {
                   {verdict.lynchCategory}
                 </span>
               </div>
+              {verdict.fallingKnife && (
+                <p className="mt-1 text-xs font-medium text-amber-600">{t('fallingKnife')}</p>
+              )}
               {verdict.missingData.length > 0 && (
                 <p className="mt-1 text-xs text-muted-foreground">
                   {t('missingData', { fields: verdict.missingData.join(', ') })}

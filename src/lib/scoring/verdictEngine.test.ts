@@ -56,12 +56,13 @@ const balanceSheet: BalanceSheet = {
 };
 
 describe('generateVerdict', () => {
-  it('returns BUY for a financially strong company', () => {
+  it('returns BUY for a financially strong company at a good price', () => {
     const result = generateVerdict({
       financials: strongMetrics,
       balanceSheet,
       price: 150,
       industryBenchmarks: DEFAULT_BENCHMARKS,
+      dcfFairValuePerShare: 300, // 50% below fair value
     });
     expect(result.recommendation).toBe('BUY');
   });
@@ -652,5 +653,43 @@ describe('uncertainty-scaled margin of safety (P14)', () => {
   it('adds to the market regime bonus', () => {
     const r = generateVerdict({ ...base, uncertainValue: true, requiredMosBonus: 0.05 });
     expect(r.suggestedBuyPrice).toBeCloseTo(65, 6); // 100 × (0.75 − 0.05 − 0.05)
+  });
+});
+
+describe('verdict gates (owner, 2026-11-23)', () => {
+  const base = { balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS };
+  const cheap = { dcfFairValuePerShare: 300, bearFairValuePerShare: 240 };
+
+  it('BUY needs quality, a good price, a fair value and 2 : 1 — not a high average', () => {
+    const r = generateVerdict({ ...base, ...cheap, financials: strongMetrics });
+    expect(r.recommendation).toBe('BUY');
+    expect(r.quality).toBeGreaterThanOrEqual(DEFAULT_ENGINE_PARAMS.verdict.gates.qualityMin);
+  });
+
+  it('a strong business at a fair-ish price is WAIT, however high the average', () => {
+    const r = generateVerdict({ ...base, financials: strongMetrics, dcfFairValuePerShare: 160 });
+    expect(r.recommendation).toBe('WAIT');
+  });
+
+  it('no fair value → no BUY', () => {
+    const r = generateVerdict({ ...base, financials: strongMetrics, dcfFairValuePerShare: null });
+    expect(r.recommendation).not.toBe('BUY');
+  });
+
+  it('a weak business is AVOID, even when cheap', () => {
+    const r = generateVerdict({ ...base, ...cheap, financials: weakMetrics });
+    expect(r.quality).toBeLessThan(DEFAULT_ENGINE_PARAMS.verdict.gates.weakQualityMax);
+    expect(r.recommendation).toBe('AVOID');
+  });
+
+  it('a falling price no longer blocks BUY but adds the warning', () => {
+    const falling: TechnicalIndicators = {
+      rsi: 45, rsiSignal: 'neutral', fiftyTwoWeekPosition: 50, sma50: 200, sma200: 220,
+      trendVsSma50: 'below', trendVsSma200: 'below',
+    };
+    const r = generateVerdict({ ...base, ...cheap, financials: strongMetrics, technicalIndicators: falling });
+    expect(r.recommendation).toBe('BUY');
+    expect(r.fallingKnife).toBe(true);
+    expect(r.reasons.bearish.some((x) => x.includes('still falling'))).toBe(true);
   });
 });

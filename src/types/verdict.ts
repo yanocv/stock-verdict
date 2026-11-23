@@ -27,6 +27,10 @@ export interface Verdict {
   missingData: string[];
   /** Upside to fair value ÷ downside to the bear value (or stop-loss), one decimal; null without a fair value */
   rewardToRisk?: number | null;
+  /** Business quality 0–10: average of the financials and health scores (gate input) */
+  quality?: number;
+  /** BUY while the price is still falling: show the "buy in steps or wait for the trend" warning */
+  fallingKnife?: boolean;
 }
 
 export interface InvestorVerdict {

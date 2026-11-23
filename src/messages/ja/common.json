@@ -26,6 +26,7 @@
   "missingData": "データ不足（信頼度を下げています）: {fields}",
   "fairValue": "適正価格",
   "fairValueRange": "レンジ（弱気〜強気）",
+  "fallingKnife": "割安な水準ですが、株価はまだ下落傾向です。分割での購入や、トレンドの転換を待つことも検討できます。",
   "buyBelow": "買い推奨価格",
   "analysis": "分析",
   "bullish": "強気材料",

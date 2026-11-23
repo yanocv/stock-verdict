@@ -19,6 +19,22 @@ const INDUSTRY_BENCHMARKS: Record<string, IndustryBenchmarks> = {
     roe: { poor: 5, average: 10, good: 18 },
     debtToEquity: { low: 0.5, moderate: 1.5, high: 2.5 },
   },
+  // Electronic components, hardware, instruments (TDK, Murata, Keyence): lower margins than software
+  'Tech Hardware': {
+    pe: { cheap: 10, fair: 18, expensive: 30 },
+    ps: { cheap: 0.5, fair: 1.5, expensive: 4 },
+    operatingMargin: { poor: 4, average: 9, good: 15 },
+    roe: { poor: 5, average: 10, good: 15 },
+    debtToEquity: { low: 0.3, moderate: 0.8, high: 1.5 },
+  },
+  // Chips and chip equipment/materials (Tokyo Electron, Advantest, Tokyo Ohka): cyclical, higher margins
+  Semiconductors: {
+    pe: { cheap: 12, fair: 22, expensive: 40 },
+    ps: { cheap: 1.5, fair: 4, expensive: 10 },
+    operatingMargin: { poor: 8, average: 15, good: 25 },
+    roe: { poor: 8, average: 14, good: 22 },
+    debtToEquity: { low: 0.2, moderate: 0.6, high: 1.2 },
+  },
   Technology: {
     pe: { cheap: 15, fair: 25, expensive: 50 },
     ps: { cheap: 2, fair: 5, expensive: 12 },
@@ -101,6 +117,8 @@ const DEFAULT_BENCHMARKS: IndustryBenchmarks = {
  */
 const INDUSTRY_ALIASES: ReadonlyArray<[RegExp, string]> = [
   [/^Banks/i, 'Banking'],
+  [/^Semiconductor/i, 'Semiconductors'],
+  [/Electronic Components|Consumer Electronics|Computer Hardware|Communication Equipment|Scientific & Technical Instruments/i, 'Tech Hardware'],
   [/^Auto (Manufacturers|Parts)/i, 'Auto Manufacturing'],
   [/Retail|Department Stores|Discount Stores|Grocery Stores|Home Improvement/i, 'Retail'],
   [/Drug Manufacturers|Biotechnology/i, 'Pharma/Biotech'],
