@@ -5,6 +5,7 @@ import {
   runAdvancedDCFForStock,
   riskFreeRateFor,
   selectCashFlowBase,
+  isInsurer,
   cashConversion,
   currentEps,
   getCurrencyMismatch,
@@ -492,5 +493,23 @@ describe('estimateGrowthRate with the next-year estimate', () => {
     // This year +0.9% (214 → 216), next year −20% (216 → 172.8), clipped to −10%: median ≈ −4.5%
     const g = estimateGrowthRate({ epsGrowth: null, eps: 214, forwardEps: 216, nextYearEps: 172.8, forwardEpsAnalysts: 15 }, null);
     expect(g).toBeCloseTo(shrunk((216 / 214 - 1 - 0.10) / 2), 6);
+  });
+});
+
+describe('insurers use the earnings basis', () => {
+  it('ignores an in-line cash conversion when forced to earnings', () => {
+    const h = {
+      cashFlowAnnual: [{ period: '2025', endDate: '', freeCashFlow: 100 }],
+      incomeAnnual: [{ period: '2025', endDate: '', netIncome: 100 }],
+    };
+    const fin = { freeCashFlow: null, eps: 10, roe: 12 };
+    expect(selectCashFlowBase(fin, h, 100, 0.03)!.basis).toBe('fcf');
+    expect(selectCashFlowBase(fin, h, 100, 0.03, true)!.basis).toBe('earnings');
+  });
+
+  it('recognises insurer industries', () => {
+    expect(isInsurer({ industry: 'Insurance - Property & Casualty' })).toBe(true);
+    expect(isInsurer({ industry: 'Insurance - Life' })).toBe(true);
+    expect(isInsurer({ industry: 'Banks - Regional' })).toBe(false);
   });
 });

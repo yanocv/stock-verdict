@@ -201,3 +201,25 @@ describe('P/B–ROE uses the lower of latest and average ROE', () => {
     expect(value(8)!).toBeLessThan(value(10)!);
   });
 });
+
+describe('insurers are valued on earnings, banks on book value', () => {
+  const fin = { operatingMargin: 10, netProfitMargin: 8, roe: 8, beta: 1, eps: 19, forwardEps: 34.5, forwardEpsAnalysts: 10 };
+  const history = { incomeAnnual: [], balanceAnnual: [{ period: '2026', endDate: '', shareholderEquity: 20_000 }] };
+
+  it('uses the DCF on earnings for an insurer', () => {
+    const fv = estimateFairValue({
+      overview: { sector: 'Financial Services', industry: 'Insurance - Property & Casualty', sharesOutstanding: 100 },
+      financials: fin, history, dcf: dcf(400, 'earnings'), benchmarks,
+    });
+    expect(fv.method).toBe('dcf-earnings');
+    expect(fv.modelValue).toBe(400);
+  });
+
+  it('keeps P/B–ROE for a bank', () => {
+    const fv = estimateFairValue({
+      overview: { sector: 'Financial Services', industry: 'Banks - Diversified', sharesOutstanding: 100 },
+      financials: fin, history, dcf: dcf(400, 'earnings'), benchmarks,
+    });
+    expect(fv.method).toBe('pb-roe');
+  });
+});

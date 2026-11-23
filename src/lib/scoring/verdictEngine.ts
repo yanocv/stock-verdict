@@ -52,6 +52,14 @@ export interface VerdictEngineParams {
   nonOperatingEarnings?: boolean;
   /** True when the fair value is estimated from earnings or was capped: a BUY needs an extra discount (P14) */
   uncertainValue?: boolean;
+  /**
+   * Banks, insurers and other financials (isFinancialCompany): Health uses
+   * capital strength (`equityToAssets`) instead of current ratio and
+   * debt/equity, which don't fit a business built on deposits.
+   */
+  financialCompany?: boolean;
+  /** Shareholder equity ÷ total assets (decimal), used for financials' Health */
+  equityToAssets?: number | null;
   /** Bear-case fair value per share (estimateFairValue().bear); the downside for the reward-to-risk check */
   bearFairValuePerShare?: number | null;
   /** Weights and thresholds; defaults to DEFAULT_ENGINE_PARAMS (override for backtests). */
@@ -89,6 +97,8 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     nonOperatingEarnings = false,
     uncertainValue = false,
     bearFairValuePerShare = null,
+    financialCompany = false,
+    equityToAssets = null,
     engineParams: p = DEFAULT_ENGINE_PARAMS,
   } = params;
 
@@ -98,9 +108,14 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
     ['ROE', financials.roe],
     ['net margin', financials.netProfitMargin],
     ['operating margin', financials.operatingMargin],
-    ['free cash flow', financials.freeCashFlow],
-    ['current ratio', financials.currentRatio],
-    ['debt/equity', financials.debtToEquity],
+    ...(financialCompany ? [] : ([['free cash flow', financials.freeCashFlow]] as Array<[string, number | null]>)),
+    // Current ratio and D/E don't apply to financials; their capital ratio does
+    ...(financialCompany
+      ? ([['equity/assets', equityToAssets]] as Array<[string, number | null]>)
+      : ([
+          ['current ratio', financials.currentRatio],
+          ['debt/equity', financials.debtToEquity],
+        ] as Array<[string, number | null]>)),
     ['revenue growth', financials.revenueGrowth],
     ['EPS growth', financials.epsGrowth],
   ];
@@ -122,7 +137,8 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   // ROE and net margin are built on net income: skip them when it's one-off gains
   const earningsReliable = !nonOperatingEarnings;
   const opMargin = financials.operatingMargin;
-  const fcf = financials.freeCashFlow;
+  // A bank's cash flow swings with deposits and lending: not a quality signal
+  const fcf = financialCompany ? null : financials.freeCashFlow;
 
   if (roe !== null && earningsReliable) {
     if (roe > industryBenchmarks.roe.good) {financialsScore += 1.5;}
@@ -179,8 +195,17 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
 
   // --- Health Score (0-10) ---
   let healthScore = 5;
-  const cr = financials.currentRatio;
-  const de = financials.debtToEquity ?? Infinity;
+  // Financials: current ratio and D/E are skipped (null / Infinity) and
+  // replaced by capital strength below
+  const cr = financialCompany ? null : financials.currentRatio;
+  const de = financialCompany ? Infinity : financials.debtToEquity ?? Infinity;
+
+  if (financialCompany && equityToAssets !== null) {
+    const b = p.health.bankEquityToAssets;
+    if (equityToAssets >= b.strong) {healthScore += 2;}
+    else if (equityToAssets >= b.adequate) {healthScore += 1;}
+    else if (equityToAssets < b.weak) {healthScore -= 2;}
+  }
 
   if (cr !== null) {
     if (cr > 2) {healthScore += 1.5;}
@@ -315,11 +340,12 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   // The trend no longer blocks a BUY; a falling price adds a warning instead.
   const g = p.verdict.gates;
   const quality = Math.round(((financialsScore + healthScore) / 2) * 10) / 10;
-  const shown = scores.overall; // one decimal, as displayed
   const qualityOk = quality >= g.qualityMin;
   const priceOk = scores.valuation >= g.valueBuyMin;
+  // AVOID is for a weak business only (owner, 2026-11-23; §8.2): a sound
+  // business at a high price is WAIT, however low the average gets
   const recommendation: VerdictRecommendation =
-    shown < p.verdict.avoidMax || quality < g.weakQualityMax
+    quality < g.weakQualityMax
       ? 'AVOID'
       : qualityOk && priceOk && displayFairValue !== null && !failsRewardToRisk
         ? 'BUY'
@@ -394,6 +420,12 @@ export function generateVerdict(params: VerdictEngineParams): Verdict {
   if (fcf !== null && fcf <= 0) {bearish.push('Negative or zero free cash flow');}
   if (de !== Infinity && de > industryBenchmarks.debtToEquity.high) {bearish.push(`High debt/equity ratio of ${de.toFixed(2)}`);}
   if (cr !== null && cr < 1) {bearish.push(`Low current ratio of ${cr.toFixed(2)} — liquidity risk`);}
+  if (financialCompany && equityToAssets !== null) {
+    const pct = `${(equityToAssets * 100).toFixed(1)}%`;
+    const b = p.health.bankEquityToAssets;
+    if (equityToAssets >= b.strong) {bullish.push(`Strong capital: equity is ${pct} of assets`);}
+    else if (equityToAssets < b.weak) {bearish.push(`Thin capital: equity is only ${pct} of assets`);}
+  }
   if (pe !== Infinity && pe > industryBenchmarks.pe.expensive) {bearish.push(`P/E of ${pe.toFixed(1)} may be overvalued`);}
   if (epsGrowth !== null && epsGrowth < 0) {bearish.push(`EPS declining at ${epsGrowth.toFixed(1)}%`);}
 

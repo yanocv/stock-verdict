@@ -21,3 +21,24 @@ describe('completeFinancials', () => {
     expect(completeFinancials(fin, { cashFlowAnnual: [] })).toBe(fin);
   });
 });
+
+describe('completeFinancials: EPS against the statements', () => {
+  const quote = { sharesOutstanding: 28_000, currentPrice: 577.5 };
+  const income = (netIncome: number) => ({ cashFlowAnnual: [], incomeAnnual: [{ period: '2026', endDate: '2026-03-31', netIncome }] });
+
+  it('replaces a Yahoo EPS that contradicts the statements (e.g. after a split)', () => {
+    // Net income 531,000 ÷ 28,000 shares = 18.96; Yahoo says −4.29
+    const f = completeFinancials({ ...fin, eps: -4.29, peRatio: null }, income(531_000), quote);
+    expect(f.eps).toBeCloseTo(18.96, 2);
+    expect(f.peRatio).toBeCloseTo(577.5 / 18.96, 1);
+  });
+
+  it('keeps a Yahoo EPS that roughly agrees (trailing vs annual may differ a little)', () => {
+    const f = completeFinancials({ ...fin, eps: 24, peRatio: 24 }, income(531_000), quote);
+    expect(f.eps).toBe(24);
+  });
+
+  it('fills a missing EPS from the statements', () => {
+    expect(completeFinancials({ ...fin, eps: null, peRatio: null }, income(531_000), quote).eps).toBeCloseTo(18.96, 2);
+  });
+});

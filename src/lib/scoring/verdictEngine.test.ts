@@ -693,3 +693,55 @@ describe('verdict gates (owner, 2026-11-23)', () => {
     expect(r.reasons.bearish.some((x) => x.includes('still falling'))).toBe(true);
   });
 });
+
+describe('Health for banks and other financials', () => {
+  // A bank: deposits make D/E huge and the current ratio meaningless
+  const bank: FinancialMetrics = { ...strongMetrics, debtToEquity: 4.8, currentRatio: 0.3 };
+  const base = { financials: bank, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS };
+
+  it('ignores current ratio and D/E and uses equity ÷ assets instead', () => {
+    const asCompany = generateVerdict(base);
+    const asBank = generateVerdict({ ...base, financialCompany: true, equityToAssets: 0.052 });
+    expect(asBank.scores.health).toBe(6); // 5 + 1 (≥ 5% adequate)
+    expect(asBank.scores.health).toBeGreaterThan(asCompany.scores.health);
+    expect(asBank.reasons.bearish.some((r) => r.includes('current ratio') || r.includes('debt/equity'))).toBe(false);
+  });
+
+  it('scores strong and thin capital', () => {
+    expect(generateVerdict({ ...base, financialCompany: true, equityToAssets: 0.10 }).scores.health).toBe(7);
+    const thin = generateVerdict({ ...base, financialCompany: true, equityToAssets: 0.02 });
+    expect(thin.scores.health).toBe(3);
+    expect(thin.reasons.bearish.some((r) => r.includes('Thin capital'))).toBe(true);
+  });
+
+  it('does not count current ratio and D/E as missing for financials', () => {
+    const r = generateVerdict({ ...base, financials: { ...bank, currentRatio: null, debtToEquity: null }, financialCompany: true, equityToAssets: 0.05 });
+    expect(r.missingData).not.toContain('current ratio');
+    expect(r.missingData).not.toContain('debt/equity');
+  });
+});
+
+describe('free cash flow for financials', () => {
+  it('is neither scored nor counted as missing for banks', () => {
+    const bank: FinancialMetrics = { ...strongMetrics, freeCashFlow: -5_000_000 };
+    const base = { financials: bank, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS, equityToAssets: 0.05 };
+    const asCompany = generateVerdict(base);
+    const asBank = generateVerdict({ ...base, financialCompany: true });
+    expect(asBank.scores.financials).toBeGreaterThan(asCompany.scores.financials);
+    expect(asBank.reasons.bearish).not.toContain('Negative or zero free cash flow');
+    expect(generateVerdict({ ...base, financials: { ...bank, freeCashFlow: null }, financialCompany: true }).missingData).not.toContain('free cash flow');
+  });
+});
+
+describe('AVOID is for a weak business only', () => {
+  it('a sound business at a very high price is WAIT, even with a low overall score', () => {
+    const r = generateVerdict({
+      financials: strongMetrics, balanceSheet, price: 150, industryBenchmarks: DEFAULT_BENCHMARKS,
+      dcfFairValuePerShare: 60, macroScore: 0, newsScore: 0, // far above fair value, gloomy market
+      // Raise the old AVOID line above the score: it must no longer matter
+      engineParams: { ...DEFAULT_ENGINE_PARAMS, verdict: { ...DEFAULT_ENGINE_PARAMS.verdict, avoidMax: 8 } },
+    });
+    expect(r.scores.overall).toBeLessThan(8);
+    expect(r.recommendation).toBe('WAIT');
+  });
+});

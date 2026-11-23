@@ -26,7 +26,7 @@ export interface EngineParams {
      * threshold the confidence distance is measured from.
      */
     buyMin: number;
-    /** overall < avoidMax → AVOID; between → WAIT */
+    /** No longer decides AVOID (gates do); the lower threshold for the confidence distance */
     avoidMax: number;
     /**
      * BUY needs reward ÷ risk ≥ this (ENGINE_SPEC §10.2 P13). Reward = fair
@@ -38,8 +38,8 @@ export interface EngineParams {
     stopLossPct: number;
     /**
      * Verdict gates (owner, 2026-11-23). Quality = average of the financials
-     * and health scores. AVOID: quality < weakQualityMax (or overall <
-     * avoidMax). BUY: quality ≥ qualityMin, valuation ≥ valueBuyMin, a fair
+     * and health scores. AVOID: quality < weakQualityMax (a weak business;
+     * a high price alone gives WAIT). BUY: quality ≥ qualityMin, valuation ≥ valueBuyMin, a fair
      * value, and reward-to-risk ≥ minRewardToRisk. A BUY with technical ≤
      * fallingTechnicalMax gets the falling-price warning. Otherwise WAIT.
      */
@@ -49,6 +49,14 @@ export interface EngineParams {
       valueBuyMin: number;
       fallingTechnicalMax: number;
     };
+  };
+  health: {
+    /**
+     * Financials' Health from shareholder equity ÷ total assets (decimal):
+     * ≥ strong +2, ≥ adequate +1, < weak −2. Japanese megabanks sit around
+     * 5%; insurers and leasing companies higher.
+     */
+    bankEquityToAssets: { strong: number; adequate: number; weak: number };
   };
   confidence: {
     /** Confidence at a threshold, before distance is added */
@@ -161,6 +169,9 @@ export const DEFAULT_ENGINE_PARAMS: EngineParams = {
     minRewardToRisk: 2,
     stopLossPct: 0.15,
     gates: { weakQualityMax: 3, qualityMin: 5.5, valueBuyMin: 8, fallingTechnicalMax: 4 },
+  },
+  health: {
+    bankEquityToAssets: { strong: 0.08, adequate: 0.05, weak: 0.03 },
   },
   confidence: {
     base: 50,

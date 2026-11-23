@@ -7,7 +7,7 @@ import type { MacroData } from '@/types';
 import { getBenchmarksForSector } from '@/lib/benchmarks/industries';
 import { NIKKEI_UNIVERSE } from '@/lib/screener/nikkeiUniverse';
 import { runAdvancedDCFForStock } from '@/lib/formulas/dcfAdvanced';
-import { estimateFairValue } from '@/lib/formulas/fairValue';
+import { estimateFairValue, isFinancialCompany } from '@/lib/formulas/fairValue';
 import { completeBalanceSheet } from '@/lib/formulas/balanceSheet';
 import { completeFinancials } from '@/lib/formulas/statements';
 import { fetchFinancialHistory } from '@/lib/services/financialHistoryService';
@@ -49,7 +49,7 @@ async function processTicker(
   // History is needed so screener fair values match the full analysis
   const [stockData, history] = await Promise.all([fetchStockData(ticker), fetchFinancialHistory(ticker)]);
   const { overview } = stockData;
-  const financials = completeFinancials(stockData.financials, history);
+  const financials = completeFinancials(stockData.financials, history, overview);
   const balanceSheet = completeBalanceSheet(stockData.balanceSheet, history);
   const benchmarks = getBenchmarksForSector(overview.sector || sector, overview.industry);
   const dcfAnalysis = runAdvancedDCFForStock(overview, financials, balanceSheet, history, macroData);
@@ -69,6 +69,8 @@ async function processTicker(
     requiredMosBonus,
     nonOperatingEarnings: fairValue.unavailableReason === 'non-operating-earnings',
     bearFairValuePerShare: fairValue.bear,
+    financialCompany: isFinancialCompany(overview),
+    equityToAssets: balanceSheet.totalAssets > 0 ? balanceSheet.shareholderEquity / balanceSheet.totalAssets : null,
     uncertainValue: fairValue.method === 'dcf-earnings' || fairValue.adjustment === 'capped',
   });
 

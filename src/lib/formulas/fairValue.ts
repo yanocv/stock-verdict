@@ -5,6 +5,7 @@ import {
   calculateWACC,
   clampBeta,
   currentEps,
+  isInsurer,
   DEFAULT_EQUITY_RISK_PREMIUM,
   DEFAULT_RISK_FREE_RATE,
   DEFAULT_TERMINAL_GROWTH_RATE,
@@ -112,7 +113,7 @@ export function pbRoeFairValue(input: {
  * earnings support.
  */
 export function estimateFairValue(input: {
-  overview: Pick<StockOverview, 'sector' | 'sharesOutstanding'>;
+  overview: Pick<StockOverview, 'sector' | 'sharesOutstanding'> & Partial<Pick<StockOverview, 'industry'>>;
   financials: Pick<
     FinancialMetrics,
     'roe' | 'beta' | 'eps' | 'forwardEps' | 'forwardEpsAnalysts' | 'operatingMargin' | 'netProfitMargin'
@@ -138,7 +139,8 @@ export function estimateFairValue(input: {
   let modelValue: number | null;
   let bearModel: number | null;
   let bullModel: number | null;
-  if (financial) {
+  // Banks on book value; insurers on earnings like other companies (isInsurer)
+  if (financial && !isInsurer(overview)) {
     method = 'pb-roe';
     const pbRoe = (costOfEquityShift: number) =>
       pbRoeFairValue({

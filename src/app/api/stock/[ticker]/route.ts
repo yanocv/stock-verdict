@@ -15,7 +15,7 @@ import { getBenchmarksForSector } from '@/lib/benchmarks/industries';
 import { generateAINarrative } from '@/lib/services/claudeService';
 import { calculateRSI, classifyRSI, calculateSMA, extractCloses } from '@/lib/formulas/rsi';
 import { runAdvancedDCFForStock } from '@/lib/formulas/dcfAdvanced';
-import { estimateFairValue } from '@/lib/formulas/fairValue';
+import { estimateFairValue, isFinancialCompany } from '@/lib/formulas/fairValue';
 import { completeBalanceSheet } from '@/lib/formulas/balanceSheet';
 import { completeFinancials } from '@/lib/formulas/statements';
 import type { StockVerdictResponse, TechnicalIndicators } from '@/types';
@@ -48,7 +48,7 @@ export async function GET(
 
     const { overview, incomeStatement, calendarData, analystConsensus } = stockData;
     // Free cash flow from the annual statements; Yahoo's 12-month figure is unreliable
-    const financials = completeFinancials(stockData.financials, financialHistory);
+    const financials = completeFinancials(stockData.financials, financialHistory, overview);
     // Yahoo's snapshot has no balance sheet any more; take it from the statements
     const balanceSheet = completeBalanceSheet(stockData.balanceSheet, financialHistory);
 
@@ -113,6 +113,8 @@ export async function GET(
       requiredMosBonus: macroRegime.marginOfSafetyBonus / 100,
       nonOperatingEarnings: fairValueEstimate.unavailableReason === 'non-operating-earnings',
       bearFairValuePerShare: fairValueEstimate.bear,
+      financialCompany: isFinancialCompany(overview),
+      equityToAssets: balanceSheet.totalAssets > 0 ? balanceSheet.shareholderEquity / balanceSheet.totalAssets : null,
       uncertainValue: fairValueEstimate.method === 'dcf-earnings' || fairValueEstimate.adjustment === 'capped',
     });
 

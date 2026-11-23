@@ -29,6 +29,7 @@ Tickers: four digits (`7203`) become Tokyo tickers (`7203.T`).
 |---|---|---|
 | Price, ratios (P/E, ROE, margins…), total debt, cash, analyst EPS estimate | Yahoo Finance `quoteSummary` | `services/yahooFinance.ts` |
 | Free cash flow used by scores and lens checks | Latest **annual statement** figure (`completeFinancials`); Yahoo's last-12-month figure only when there are no statements. The quote field was unreliable (TDK −¥34B vs +¥209B reported, Nov 2026) | `formulas/statements.ts` |
+| EPS and P/E | Yahoo's trailing EPS, unless it **contradicts the latest annual statement** (opposite sign, or more than 2× off net income ÷ shares, or missing): then EPS = statement net income ÷ shares and P/E = price ÷ that EPS (`completeFinancials`, since 2026-11-23). Catches stale fields after stock splits (Tokio Marine 15:1, Sep 2026: −¥4.29 vs +¥18.95) and one-off-inflated 12-month figures (ORIX ¥861 vs ¥417) | `formulas/statements.ts` |
 | Balance sheet (equity, assets, liabilities, retained earnings) | Latest quarterly or annual statement, whichever is newer (`completeBalanceSheet`). Yahoo's snapshot has returned no balance sheet since Nov 2024; debt and cash from the snapshot are kept when present | `formulas/balanceSheet.ts` |
 | Annual and quarterly statements (income, balance, cash flow) | Yahoo Finance time series | `services/financialHistoryService.ts` |
 | Daily prices (5 years) | Yahoo Finance | `financialHistoryService.ts` `fetchPriceHistory` |
@@ -95,7 +96,8 @@ From daily closes:
 ### 5.1 Method by company type ([`formulas/fairValue.ts`](../src/lib/formulas/fairValue.ts) `estimateFairValue`)
 | Company | Method |
 |---|---|
-| Sector "Financial Services" (banks, insurers, brokers) | **P/B–ROE** (§5.5) |
+| Sector "Financial Services", except insurers (banks, brokers, leasing) | **P/B–ROE** (§5.5) |
+| Insurers (industry "Insurance…") | **DCF on earnings** (`dcf-earnings`, §5.2–5.4, earnings basis always): book value is swollen by unrealized gains on shareholdings and cash flow follows premiums and claims (`isInsurer`, since 2026-11-23) |
 | Everyone else | **DCF** (§5.2–5.4) on free cash flow (`dcf-fcf`) or on earnings (`dcf-earnings`) |
 | Statements in another currency than the price (ADRs) | **none**: per-share values would be wrong |
 | Profitable, but operations lose money (operating margin ≤ 0 while net margin or EPS > 0), non-financials only | **none**: the profit is investment gains or one-offs (e.g. SoftBank Group), and valuing it would treat it as recurring (`hasNonOperatingEarnings`) |
@@ -182,6 +184,11 @@ Margin of safety (MoS) = (fair value − price) ÷ fair value, **minus the regim
 | Current ratio | > 2 +1.5 · > 1 +0.5 · ≤ 1 −2 |
 | Debt/equity | < sector low +2 · < moderate +0.5 · > high −2 |
 
+**Financials companies** (sector Financial Services: banks, insurers, leasing; since 2026-11-23). Their balance sheets are built on deposits and policy reserves, so:
+- **Health** skips current ratio and debt/equity and uses capital strength instead: shareholder equity ÷ total assets ≥ **8%** +2, ≥ **5%** +1, < **3%** −2 *(param `health.bankEquityToAssets`)*. Japanese megabanks sit around 5%; insurers and leasing companies higher. Reasons: "Strong capital: equity is X% of assets" / "Thin capital…".
+- **Financials** skips free cash flow (it swings with deposits and lending).
+- Current ratio, debt/equity and free cash flow don't count as missing data for them; equity/assets does.
+
 **Technical** (with price history)
 | Input | Points |
 |---|---|
@@ -198,19 +205,19 @@ Without price history (screener): beta 0–1.2 +1 · > 2 −1.5; EPS growth > 15
 Each headline: +0.2 per bullish keyword, −0.2 per bearish keyword (e.g. "upgrade", "beat" vs "downgrade", "lawsuit"), kept within −1…+1. News score = (average + 1) × 5. No news → 5. English headlines only; a weak signal, hence the small weight.
 
 ### 6.4 Overall score and verdict
-Overall = weighted average *(param `weights`)*: valuation **35%**, financials **20%**, health **20%**, technical **12%**, macro **7%**, news **6%**. It is **displayed** (owner decision ENGINE_SPEC §8.3) and still triggers AVOID below 4, but since 2026-11-23 it **no longer decides BUY**: the average squeezed scores toward 5, and a cheap stock usually has a falling trend, so BUY was practically unreachable (TDK: valuation 10, reward-to-risk 6.7 : 1, overall 7.0 → WAIT).
+Overall = weighted average *(param `weights`)*: valuation **35%**, financials **20%**, health **20%**, technical **12%**, macro **7%**, news **6%**. It is **displayed** (owner decision ENGINE_SPEC §8.3), but since 2026-11-23 it **no longer decides the verdict**: the average squeezed scores toward 5, and a cheap stock usually has a falling trend, so BUY was practically unreachable (TDK: valuation 10, reward-to-risk 6.7 : 1, overall 7.0 → WAIT).
 
 **Verdict gates** *(params `verdict.gates`, `verdict.avoidMax`, `verdict.minRewardToRisk`)*. Quality = average of the financials and health scores, one decimal (returned as `verdict.quality`).
 
 | Verdict | Rule |
 |---|---|
-| **AVOID** | Quality **< 3** (weak business), or overall **< 4** (shown to one decimal) |
+| **AVOID** | Quality **< 3**: a weak business. A sound business at a high price is **WAIT**, however low the overall score (owner, 2026-11-23, following §8.2: valuation failures cap at WAIT) |
 | **BUY** | All of: quality **≥ 5.5**; valuation score **≥ 8**; a fair value exists (§5); reward ÷ risk **≥ 2** (below) |
 | **WAIT** | Everything else |
 
 - **Falling-price warning** (`verdict.fallingKnife`): a BUY whose technical score is **≤ 4** (price below its moving averages) stays BUY, and the screen adds: "Good price, but still falling — consider buying in steps or waiting for the trend to turn." The trend informs timing; it no longer blocks the verdict.
 - **Reasons** explain a missed BUY: "Good price, but business quality X is below 5.5 — WAIT instead of BUY", "Upside vs downside is X : 1, below 2 : 1 — WAIT instead of BUY", or "Weak business: quality X of 10 — AVOID".
-- `verdict.buyMin` (7) no longer decides anything except the confidence distance (§6.6).
+- `verdict.buyMin` (7) and `verdict.avoidMax` (4) no longer decide the verdict; they are only the thresholds the confidence distance is measured from (§6.6).
 
 **Reward-to-risk** *(param `verdict.minRewardToRisk` 2, `verdict.stopLossPct` 0.15)*:
 - Reward = fair value − price. Risk = the **larger** of (price − bear value, §5.7) and the 15% stop-loss (price × 0.15): you risk at least your stop, even when the bear value is just under or above the price.

@@ -269,7 +269,9 @@ export function selectCashFlowBase(
   financials: Pick<FinancialMetrics, 'freeCashFlow' | 'eps' | 'roe' | 'forwardEps' | 'forwardEpsAnalysts'>,
   history: Pick<FinancialHistory, 'cashFlowAnnual' | 'incomeAnnual'> | null | undefined,
   sharesOutstanding: number,
-  longRunGrowth: number
+  longRunGrowth: number,
+  /** Always use the earnings basis (insurers: cash flow follows premiums and claims) */
+  forceEarnings = false
 ): CashFlowBase | null {
   const eps = currentEps(financials);
   const earnings =
@@ -282,7 +284,7 @@ export function selectCashFlowBase(
       (history ? cashConversion(history) : null) ??
       (financials.freeCashFlow !== null ? financials.freeCashFlow / earnings : null);
     const { min, max } = DCF_PARAMS.fcfToEarnings;
-    if (conversion !== null && conversion >= min && conversion <= max) {
+    if (!forceEarnings && conversion !== null && conversion >= min && conversion <= max) {
       // FCF above earnings (working-capital swings, capex below depreciation)
       // doesn't last, so it is never credited above earnings
       return { basis: 'fcf', amount: earnings * Math.min(conversion, DCF_PARAMS.maxCashConversion) };
@@ -460,6 +462,15 @@ export function getCurrencyMismatch(
 }
 
 /**
+ * Insurers (Yahoo industries "Insurance - …", "Insurance Brokers"). Valued on
+ * earnings: their book value is swollen by unrealized gains on shareholdings
+ * and their cash flow follows premiums and claims (Tokio Marine, Nov 2026).
+ */
+export function isInsurer(overview: { industry?: string }): boolean {
+  return /^Insurance/i.test(overview.industry ?? '');
+}
+
+/**
  * Risk-free rate (decimal) for discounting a stock's cash flows: the live
  * 10-year government yield of its home market — JGB for Tokyo tickers, US
  * Treasury otherwise — or that market's fallback when the yield is missing.
@@ -491,7 +502,10 @@ export function runAdvancedDCFForStock(
   // No cash flow → no base case when currencies differ
   const base = currencyMismatch
     ? null
-    : selectCashFlowBase(financials, history, overview.sharesOutstanding, Math.min(DEFAULT_TERMINAL_GROWTH_RATE, riskFreeRate));
+    : selectCashFlowBase(
+        financials, history, overview.sharesOutstanding,
+        Math.min(DEFAULT_TERMINAL_GROWTH_RATE, riskFreeRate), isInsurer(overview)
+      );
   const analysis = runAdvancedDCF({
     freeCashFlow: base?.amount ?? 0,
     sharesOutstanding: overview.sharesOutstanding,
