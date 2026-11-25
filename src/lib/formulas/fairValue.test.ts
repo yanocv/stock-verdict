@@ -41,6 +41,14 @@ describe('estimateFairValue', () => {
     expect(fv.adjustment).toBeNull();
   });
 
+  it('caps on FCF per share instead of EPS when FCF persistently exceeds earnings', () => {
+    // EPS 10 → 150 × 1.5 = 225 would cap; FCF/share 30 → 450 × 1.5 = 675 does not
+    const fv = estimateFairValue({ overview: industrial, financials: { operatingMargin: 10, netProfitMargin: 8, roe: 12, beta: 1, eps: 10 }, history: null, dcf: { ...dcf(600), persistentFcfPerShare: 30 }, benchmarks });
+    expect(fv.value).toBe(600);
+    expect(fv.multiplesValue).toBe(450);
+    expect(fv.adjustment).toBeNull();
+  });
+
   it('leaves the value unbounded when EPS is not positive', () => {
     const fv = estimateFairValue({ overview: industrial, financials: { operatingMargin: 10, netProfitMargin: 8, roe: -5, beta: 1, eps: -3 }, history: null, dcf: dcf(600), benchmarks });
     expect(fv.value).toBe(600);

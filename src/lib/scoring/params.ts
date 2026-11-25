@@ -136,6 +136,8 @@ export interface EngineParams {
     fcfToEarnings: { min: number; max: number };
     /** Highest cash conversion credited: FCF above earnings doesn't last */
     maxCashConversion: number;
+    /** Years of FCF ≥ net income (all positive) needed to value on average FCF when conversion is above the band */
+    persistentFcfYears: number;
     /** Each growth input is clipped to this range before the median */
     growthInputClip: { min: number; max: number };
     /** Share of (median growth − long-run growth) kept; the rest reverts to long-run growth */
@@ -225,6 +227,7 @@ export const DEFAULT_ENGINE_PARAMS: EngineParams = {
     cashFlowYears: 4,
     fcfToEarnings: { min: 0.5, max: 1.5 },
     maxCashConversion: 1.0,
+    persistentFcfYears: 3,
     growthInputClip: { min: -0.10, max: 0.25 },
     growthShrink: 0.5,
     forecastMinAnalysts: 3,

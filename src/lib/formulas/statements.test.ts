@@ -38,6 +38,19 @@ describe('completeFinancials: EPS against the statements', () => {
     expect(f.eps).toBe(24);
   });
 
+  it('ignores a statement row that contradicts itself (net income vs its own EPS)', () => {
+    // Takeda FY2026: net income −152.39B but diluted EPS +119.64 in the same row
+    const row = { cashFlowAnnual: [], incomeAnnual: [{ period: '2026', endDate: '2026-03-31', netIncome: -152_390, epsDiluted: 119.64 }] };
+    const f = completeFinancials({ ...fin, eps: 22.6, peRatio: 325 }, row, { sharesOutstanding: 1_597, currentPrice: 7_353 });
+    expect(f.eps).toBe(22.6);
+    expect(f.peRatio).toBe(325);
+  });
+
+  it('still overrides when the row agrees with itself', () => {
+    const row = { cashFlowAnnual: [], incomeAnnual: [{ period: '2026', endDate: '2026-03-31', netIncome: 531_000, epsDiluted: 18.9 }] };
+    expect(completeFinancials({ ...fin, eps: -4.29, peRatio: null }, row, quote).eps).toBeCloseTo(18.96, 2);
+  });
+
   it('fills a missing EPS from the statements', () => {
     expect(completeFinancials({ ...fin, eps: null, peRatio: null }, income(531_000), quote).eps).toBeCloseTo(18.96, 2);
   });

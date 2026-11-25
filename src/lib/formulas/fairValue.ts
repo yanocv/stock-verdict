@@ -27,7 +27,7 @@ export interface FairValueEstimate {
   method: FairValueMethod | null;
   /** Per-share value from the method, before the sanity cap */
   modelValue: number | null;
-  /** Current EPS (trailing blended with the analyst estimate) × sector fair P/E: the reference for the sanity cap */
+  /** Current EPS (trailing blended with the analyst estimate; average FCF per share when FCF persistently exceeds earnings) × sector fair P/E: the reference for the sanity cap */
   multiplesValue: number | null;
   /** 'capped' when modelValue was above `dcf.sanityCap` × multiplesValue */
   adjustment: 'capped' | null;
@@ -119,7 +119,8 @@ export function estimateFairValue(input: {
     'roe' | 'beta' | 'eps' | 'forwardEps' | 'forwardEpsAnalysts' | 'operatingMargin' | 'netProfitMargin'
   >;
   history: Pick<FinancialHistory, 'incomeAnnual' | 'balanceAnnual'> | null | undefined;
-  dcf: Pick<DCFAnalysis, 'baseCase' | 'cashFlowBasis' | 'riskFreeRate' | 'currencyMismatch' | 'sensitivityTable'>;
+  dcf: Pick<DCFAnalysis, 'baseCase' | 'cashFlowBasis' | 'riskFreeRate' | 'currencyMismatch' | 'sensitivityTable'> &
+    Partial<Pick<DCFAnalysis, 'persistentFcfPerShare'>>;
   benchmarks: Pick<IndustryBenchmarks, 'pe'>;
 }): FairValueEstimate {
   const { overview, financials, history, dcf, benchmarks } = input;
@@ -160,7 +161,12 @@ export function estimateFairValue(input: {
     bullModel = gridValue(dcf.sensitivityTable, BULL_CELL);
   }
 
-  const eps = currentEps(financials);
+  // When FCF persistently exceeds earnings (amortisation), FCF per share is
+  // the earning power the cap compares against, not depressed accounting EPS
+  const accountingEps = currentEps(financials);
+  const fcfPerShare = method === 'pb-roe' ? null : (dcf.persistentFcfPerShare ?? null);
+  const eps =
+    fcfPerShare !== null && fcfPerShare > (accountingEps ?? 0) ? fcfPerShare : accountingEps;
   const multiplesValue = eps !== null && eps > 0 ? eps * benchmarks.pe.fair : null;
   if (modelValue === null) {return { ...none, method, multiplesValue };}
 

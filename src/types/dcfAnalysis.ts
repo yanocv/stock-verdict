@@ -17,6 +17,8 @@ export interface DCFAnalysis {
   baseCase: number | null;
   /** Cash flow the DCF discounted: average free cash flow, or earnings after reinvestment (see selectCashFlowBase) */
   cashFlowBasis?: 'fcf' | 'earnings' | null;
+  /** Average FCF per share when FCF persistently exceeds earnings (amortisation-heavy companies); the sanity cap then uses it instead of EPS */
+  persistentFcfPerShare?: number | null;
   /** Set when financials and price use different currencies; no fair value is computed. */
   currencyMismatch?: { price: string; financial: string } | null;
   /** WACC used in the base-case calculation */

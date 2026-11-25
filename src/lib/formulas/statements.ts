@@ -21,8 +21,18 @@ export function completeFinancials(
   // stock split (Tokio Marine 15:1, Sep 2026: −¥4.29 vs +¥19 from its
   // statements). When it contradicts the latest annual statement (opposite
   // sign, or more than 2× off), use net income ÷ shares and recompute P/E.
-  const netIncome = latestValue(history?.incomeAnnual ?? [], (p) => p.netIncome);
-  if (netIncome !== undefined && quote && quote.sharesOutstanding > 0) {
+  // A statement row whose own diluted EPS has the opposite sign to its net
+  // income contradicts itself (Takeda FY2026: net income −¥152B, diluted EPS
+  // +¥119.64), so it is not used to override anything.
+  const latestIncome = [...(history?.incomeAnnual ?? [])]
+    .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())
+    .find((p) => typeof p.netIncome === 'number' && Number.isFinite(p.netIncome));
+  const netIncome = latestIncome?.netIncome ?? undefined;
+  const rowEps = latestIncome?.epsDiluted;
+  const rowConsistent =
+    typeof rowEps !== 'number' || !Number.isFinite(rowEps) || rowEps === 0 || netIncome === 0 ||
+    Math.sign(rowEps) === Math.sign(netIncome ?? 0);
+  if (netIncome !== undefined && netIncome !== null && rowConsistent && quote && quote.sharesOutstanding > 0) {
     const statementEps = netIncome / quote.sharesOutstanding;
     const yahooEps = financials.eps;
     const contradicts =

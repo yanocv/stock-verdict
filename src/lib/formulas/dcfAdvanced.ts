@@ -213,6 +213,8 @@ export interface CashFlowBase {
   basis: 'fcf' | 'earnings';
   /** Yearly cash flow to discount, in statement currency */
   amount: number;
+  /** True when the amount is average FCF because FCF persistently exceeds earnings (persistentFcf) */
+  persistent?: boolean;
 }
 
 /**
@@ -248,6 +250,25 @@ export function cashConversion(
   const fcfSum = pairs.reduce((s, [fcf]) => s + fcf, 0);
   const niSum = pairs.reduce((s, [, ni]) => s + ni, 0);
   return pairs.length > 0 && niSum > 0 ? fcfSum / niSum : null;
+}
+
+/**
+ * Average free cash flow over the last `dcf.cashFlowYears` matched years when
+ * FCF was positive and at least net income in every one of them (at least
+ * `dcf.persistentFcfYears` years), capped at the latest year; otherwise null.
+ */
+export function persistentFcf(
+  history: Pick<FinancialHistory, 'cashFlowAnnual' | 'incomeAnnual'>
+): number | null {
+  const netIncome = new Map(history.incomeAnnual.map((p) => [p.period, p.netIncome]));
+  const pairs = history.cashFlowAnnual
+    .map((p) => [p.freeCashFlow, netIncome.get(p.period)] as const)
+    .filter((pair): pair is readonly [number, number] => isFiniteNumber(pair[0]) && isFiniteNumber(pair[1]))
+    .slice(-DCF_PARAMS.cashFlowYears);
+  if (pairs.length < DCF_PARAMS.persistentFcfYears) {return null;}
+  if (!pairs.every(([fcf, ni]) => fcf > 0 && fcf >= ni)) {return null;}
+  const avg = pairs.reduce((s, [fcf]) => s + fcf, 0) / pairs.length;
+  return Math.min(avg, pairs[pairs.length - 1]![0]);
 }
 
 /**
@@ -289,8 +310,24 @@ export function selectCashFlowBase(
       // doesn't last, so it is never credited above earnings
       return { basis: 'fcf', amount: earnings * Math.min(conversion, DCF_PARAMS.maxCashConversion) };
     }
+    // Free cash flow above earnings in every recent year (at least
+    // `dcf.persistentFcfYears`) is not a one-off swing but non-cash charges,
+    // mainly amortisation of acquired intangibles (Takeda after Shire). The
+    // earnings basis would undervalue it, so average FCF is used, never
+    // above the latest year.
+    if (!forceEarnings && history && conversion !== null && conversion > max) {
+      const persistent = persistentFcf(history);
+      if (persistent !== null) {return { basis: 'fcf', amount: persistent, persistent: true };}
+    }
     const roe = financials.roe !== null && financials.roe > 0 ? financials.roe / 100 : null;
-    const payout = roe !== null ? Math.min(1, Math.max(DCF_PARAMS.minPayout, 1 - longRunGrowth / roe)) : DCF_PARAMS.minPayout;
+    const reinvestPayout = roe !== null ? Math.min(1, Math.max(DCF_PARAMS.minPayout, 1 - longRunGrowth / roe)) : DCF_PARAMS.minPayout;
+    // Conversion positive but below the band: the company keeps reinvesting
+    // most of its profit (heavy capex every year, JX Advanced Metals 0.33).
+    // Credit no more of earnings than actually became free cash.
+    const payout =
+      !forceEarnings && conversion !== null && conversion > 0 && conversion < min
+        ? Math.min(reinvestPayout, conversion)
+        : reinvestPayout;
     return { basis: 'earnings', amount: earnings * payout };
   }
   const fcf =
@@ -518,6 +555,8 @@ export function runAdvancedDCFForStock(
     currentPrice: overview.currentPrice,
   });
   const cashFlowBasis = base?.basis ?? null;
+  const persistentFcfPerShare =
+    base?.persistent && overview.sharesOutstanding > 0 ? base.amount / overview.sharesOutstanding : null;
   const implied =
     base && !currencyMismatch && analysis.wacc !== null
       ? solveImpliedGrowth({
@@ -535,8 +574,8 @@ export function runAdvancedDCFForStock(
     impliedGrowthBound: implied?.bound ?? null,
   });
   return currencyMismatch
-    ? { ...analysis, sensitivityTable: [], currencyMismatch, cashFlowBasis }
-    : { ...analysis, currencyMismatch, cashFlowBasis };
+    ? { ...analysis, sensitivityTable: [], currencyMismatch, cashFlowBasis, persistentFcfPerShare }
+    : { ...analysis, currencyMismatch, cashFlowBasis, persistentFcfPerShare };
 }
 
 /** Range searched by the reverse DCF; prices outside it are reported as a bound. */

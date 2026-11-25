@@ -5,6 +5,7 @@ import type { FinancialHistory, FinancialPeriod } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { TableIcon } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface FinancialStatementsPanelProps {
   history: FinancialHistory;
@@ -137,6 +138,7 @@ type FreqTab = 'annual' | 'quarterly';
 type StatementTab = 'income' | 'balance' | 'cashflow';
 
 export function FinancialStatementsPanel({ history, currency }: FinancialStatementsPanelProps) {
+  const t = useTranslations('common');
   const [freq, setFreq] = useState<FreqTab>('annual');
   const [stmt, setStmt] = useState<StatementTab>('income');
 
@@ -188,6 +190,7 @@ export function FinancialStatementsPanel({ history, currency }: FinancialStateme
 
           <TabsContent value="cashflow">
             <StatementTable periods={cashflowPeriods} rows={CASHFLOW_ROWS} currency={currency} />
+            <p className="mt-3 text-xs text-muted-foreground">{t('fcfNote')}</p>
           </TabsContent>
         </Tabs>
       </CardContent>

@@ -32,6 +32,7 @@
   "researchBudget": "Pesquisa pausada: o orçamento diário ou mensal foi atingido. Mostrando o último resultado salvo.",
   "eventApplied": "reduziu o valor justo",
   "researchNote": "Encontrado por IA com busca na web; confira as fontes. Só eventos negativos com tamanho e fonte reduzem o valor justo.",
+  "fcfNote": "Fluxo de caixa livre = fluxo de caixa operacional − investimentos (capex), dos demonstrativos da empresa. Outros sites (Google Finance, resumo do Yahoo) podem mostrar o fluxo de caixa livre \"alavancado\", que também desconta juros e outros gastos, então os valores podem diferir.",
   "buyBelow": "Comprar Abaixo de",
   "analysis": "Análise",
   "bullish": "Otimista",

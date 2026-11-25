@@ -5,6 +5,7 @@ import {
   runAdvancedDCFForStock,
   riskFreeRateFor,
   selectCashFlowBase,
+  persistentFcf,
   isInsurer,
   solveImpliedGrowth,
   cashConversion,
@@ -422,6 +423,14 @@ describe('selectCashFlowBase', () => {
     expect(selectCashFlowBase(fin, history([600, 600], [200, 200]), 100, 0.03)!.basis).toBe('earnings');
   });
 
+  it('credits no more than actual cash conversion when a company keeps reinvesting', () => {
+    // JX-like: FCF −35, −46, 152, 32 vs net income 37, 103, 68, 105 → conversion 103 ÷ 313 ≈ 0.33
+    // ROE 25.8% would allow 1 − 3% ÷ 25.8% ≈ 88%; capped at the 33% that became cash
+    const base = selectCashFlowBase({ ...fin, roe: 25.8 }, history([-35, -46, 152, 32], [37, 103, 68, 105]), 100, 0.03);
+    expect(base!.basis).toBe('earnings');
+    expect(base!.amount).toBeCloseTo(1000 * (103 / 313), 6);
+  });
+
   it('keeps at least the minimum payout for low-ROE companies', () => {
     const base = selectCashFlowBase({ ...fin, roe: 4 }, history([-10], [100]), 100, 0.03);
     expect(base!.amount).toBeCloseTo(1000 * DEFAULT_ENGINE_PARAMS.dcf.minPayout, 6);
@@ -488,6 +497,34 @@ describe('cash conversion above earnings', () => {
       incomeAnnual: [{ period: '2025', endDate: '', netIncome: 100 }],
     };
     expect(selectCashFlowBase({ freeCashFlow: null, eps: 10, roe: 12 }, h, 100, 0.03)).toEqual({ basis: 'fcf', amount: 1000 });
+  });
+});
+
+describe('FCF persistently above earnings (amortisation)', () => {
+  const history = (fcf: number[], ni: number[]) => ({
+    cashFlowAnnual: fcf.map((v, i) => ({ period: String(2023 + i), endDate: '', freeCashFlow: v })),
+    incomeAnnual: ni.map((v, i) => ({ period: String(2023 + i), endDate: '', netIncome: v })),
+  });
+  const fin = { freeCashFlow: null, eps: 1, roe: 5 };
+
+  it('values on average FCF, never above the latest year', () => {
+    // Takeda-like: FCF ≥ net income in all 4 years; average 471 (latest 627)
+    const h = history([343, 236, 678, 627], [317, 144, 108, -152]);
+    expect(persistentFcf(h)).toBeCloseTo(471, 6);
+    expect(selectCashFlowBase(fin, h, 100, 0.03)).toEqual({ basis: 'fcf', amount: 471, persistent: true });
+    // Latest year below the average → the latest year
+    expect(persistentFcf(history([600, 600, 300], [100, 100, 100]))).toBe(300);
+  });
+
+  it('needs enough years, all positive and all at least net income', () => {
+    expect(persistentFcf(history([600, 600], [200, 200]))).toBeNull();
+    expect(persistentFcf(history([600, 150, 600], [200, 200, 200]))).toBeNull();
+    expect(persistentFcf(history([600, -10, 600], [200, -50, 200]))).toBeNull();
+  });
+
+  it('is not used for insurers (earnings basis forced)', () => {
+    const h = history([343, 236, 678, 627], [317, 144, 108, -152]);
+    expect(selectCashFlowBase(fin, h, 100, 0.03, true)!.basis).toBe('earnings');
   });
 });
 

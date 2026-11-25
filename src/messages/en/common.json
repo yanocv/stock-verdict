@@ -32,6 +32,7 @@
   "researchBudget": "Research paused: the daily or monthly budget is reached. Showing the last saved result.",
   "eventApplied": "lowered the fair value",
   "researchNote": "Found by AI with web search; check the sources. Only negative events with a size and a source lower the fair value.",
+  "fcfNote": "Free cash flow = operating cash flow − capital expenditures, from the company's statements. Other sites (Google Finance, Yahoo's summary) may show \"levered\" free cash flow, which also subtracts interest and other spending, so their figures can differ.",
   "buyBelow": "Buy Below",
   "analysis": "Analysis",
   "bullish": "Bullish",

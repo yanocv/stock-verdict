@@ -29,7 +29,7 @@ npm ci
 npm run dev
 npm run lint        # eslint . (flat config; 0 errors, 2 known set-state-in-effect warnings)
 npm run typecheck
-npm run test:run    # vitest; 422 tests as of 2026-11-23
+npm run test:run    # vitest; 429 tests as of 2026-11-25
 ```
 
 Env: copy `.env.example` → `.env.local`. `ANTHROPIC_API_KEY` is optional (AI summary and AI research are skipped without it; research has its own budget settings, see `.env.example`); `ANTHROPIC_MODEL` defaults to `claude-haiku-5-5`.
